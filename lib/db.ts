@@ -8,7 +8,8 @@ export type UserDoc = {
   passwordHash: string;
   startDate: string; // YYYY-MM-DD (IST)
   productStatus: Record<string, string>;
-  profile?: { gender: string; age: string; diet: string };
+  profile?: Record<string, unknown>;
+  prodPicks?: Record<string, string>;
   foodPicks?: string[];
   createdAt: Date;
 };

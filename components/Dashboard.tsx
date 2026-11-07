@@ -5,14 +5,18 @@ import ProfilePicker from "./ProfilePicker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FOODS, SLOTS, LIFESTYLE, allowed, defaultPicks, foodSteps, slotPicks, type SlotId } from "@/lib/foods";
 import { REMEDIES, NEVER } from "@/lib/remedies";
-import { AGE_GROUPS, AGE_LABEL, DEFAULT_PROFILE, DIET_LABEL, TAG_LABEL, focusFor, type Profile } from "@/lib/profile";
+import { AGE_LABEL, CONCERN_LABEL, DEFAULT_PROFILE, DIET_LABEL, SKIN_LABEL, SUN_LABEL, TAG_LABEL, focusFor, type Profile } from "@/lib/profile";
 import {
-  AM_STEPS, PRODUCTS, RULES, LOW_BP, WEEK_NEWS,
-  NIGHT_LABEL, NIGHT_NOTE, nightSteps, nightType, dayNumber, weekOf, addDays, weekdayIdx, Step,
+  CATALOG, ROLES, NIGHT_LABEL, amazonUrl, rupees, selection, defaultPicks as defaultProducts,
+  amSteps as amFor, nightSteps as pmFor, nightType as nightFor, nightNote, weekGrid, weekNews,
+  type Picks, type Product, type Role, type Selection,
+} from "@/lib/routine";
+import {
+  RULES, LOW_BP, dayNumber, weekOf, addDays, weekdayIdx, Step,
 } from "@/lib/plan";
 
-type Me = { name: string; username: string; startDate: string; productStatus: Record<string, string>; profile: Profile | null; foodPicks: string[] | null };
-type Ctx = { picks: string[]; profile: Profile };
+type Me = { name: string; username: string; startDate: string; productStatus: Record<string, string>; profile: Profile | null; foodPicks: string[] | null; prodPicks: Picks };
+type Ctx = { picks: string[]; profile: Profile; sel: Selection };
 type Log = { date: string; checks?: Record<string, boolean>; rating?: number; note?: string; reaction?: boolean };
 type Tab = "today" | "routine" | "products" | "food" | "progress";
 
@@ -21,16 +25,9 @@ const todayIST = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkat
 const prettyDate = (d: string) =>
   new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
-// Small wording changes by profile (shaving for men, makeup removal for women).
-function personal(steps: Step[], p: Profile): Step[] {
-  return steps.map((s) => {
-    if (s.id === "am_wash" && p.gender === "male") return { ...s, detail: s.detail + " Shave now if needed, then wait 2 min before serum." };
-    if (s.id === "pm_clean" && p.gender === "female") return { ...s, detail: "Remove kajal / makeup first. " + s.detail };
-    return s;
-  });
-}
-const amSteps = (c: Ctx) => personal(AM_STEPS, c.profile);
-const pmSteps = (start: string, date: string, c: Ctx) => personal(nightSteps(start, date), c.profile);
+const amSteps = (c: Ctx) => amFor(c.sel, c.profile);
+const pmSteps = (start: string, date: string, c: Ctx) => pmFor(start, date, c.sel, c.profile);
+const nightType = (start: string, date: string, c: Ctx) => nightFor(start, date, c.sel, c.profile);
 const insideSteps = (start: string, date: string, c: Ctx) => [...foodSteps(c.picks, c.profile.diet, start, date), ...LIFESTYLE];
 function stepsFor(start: string, date: string, c: Ctx): Step[] {
   return [...amSteps(c), ...pmSteps(start, date, c), ...insideSteps(start, date, c)];
@@ -55,6 +52,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const pending = useRef(0);
 
   const load = useCallback(async () => {
@@ -139,7 +137,14 @@ export default function Dashboard() {
   const todayNum = dayNumber(me.startDate, today);
   const log = logs[date];
   const profile: Profile = me.profile || DEFAULT_PROFILE;
-  const ctx: Ctx = { profile, picks: me.foodPicks || defaultPicks(profile) };
+  const ctx: Ctx = { profile, picks: me.foodPicks || defaultPicks(profile), sel: selection(profile, me.prodPicks || {}) };
+  function setProdPick(role: Role, id: string | null) {
+    if (!me) return;
+    const next = { ...(me.prodPicks || {}) };
+    if (id === null) delete next[role]; else next[role] = id;
+    setMe({ ...me, prodPicks: next });
+    send("/api/me", "PATCH", { prodPick: { role, id } });
+  }
   function setPicks(picks: string[]) {
     if (!me) return;
     setMe({ ...me, foodPicks: picks });
@@ -176,6 +181,7 @@ export default function Dashboard() {
           <div className="who"><span className="avatar">{me.name.charAt(0).toUpperCase()}</span><div><b>{me.name}</b><small>@{me.username}</small></div></div>
           <div className="side-actions">
             <button className="ghost-btn" onClick={() => setShowSettings(true)}>Settings</button>
+            <button className="ghost-btn" onClick={() => setShowAbout(true)} aria-label="About and sources">ⓘ</button>
             <button className="ghost-btn danger" onClick={() => setShowReset(true)}>Reset</button>
           </div>
         </div>
@@ -185,6 +191,7 @@ export default function Dashboard() {
         <header className="topbar">
           <div className="brand-row"><Logo /><span className="brand">Carefree</span></div>
           <div className="top-actions">
+            <button className="ghost-btn" onClick={() => setShowAbout(true)} aria-label="About and sources">ⓘ</button>
             <button className="ghost-btn danger" onClick={() => setShowReset(true)}>Reset</button>
             <button className="ghost-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 11-4 0v-.1a1.6 1.6 0 00-2.7-1.1l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 003 15.4H3a2 2 0 110-4h.1A1.6 1.6 0 004.6 8.6l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V4a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H21a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z" /></svg>
@@ -211,8 +218,8 @@ export default function Dashboard() {
               setRating={(r) => patchLog(date, { rating: r }, { rating: r })}
               setReaction={(v) => patchLog(date, { reaction: v }, { reaction: v })} />
           )}
-          {tab === "routine" && <RoutineView start={me.startDate} today={today} profile={profile} />}
-          {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} />}
+          {tab === "routine" && <RoutineView start={me.startDate} today={today} profile={profile} ctx={ctx} />}
+          {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} ctx={ctx} setProdPick={setProdPick} />}
           {tab === "food" && <FoodView profile={profile} picks={ctx.picks} setPicks={setPicks} />}
           {tab === "progress" && (
             <ProgressView start={me.startDate} today={today} logs={logs} ctx={ctx} open={(d) => { setDate(d); setTab("today"); window.scrollTo(0, 0); }} />
@@ -230,6 +237,7 @@ export default function Dashboard() {
       </nav>
 
       {showReset && <ResetDialog onClose={() => setShowReset(false)} onDone={() => { setShowReset(false); setDate(todayIST()); setTab("today"); load(); }} />}
+      {showAbout && <AboutDialog onClose={() => setShowAbout(false)} />}
       {showSettings && <Settings me={me} profile={profile} onClose={() => setShowSettings(false)} onSaved={load} />}
     </div>
   );
@@ -253,7 +261,8 @@ function TodayHero({ name, date, setDate, day, today, start, log, ctx }: { name:
   const isToday = date === today;
   const pct = completion(start, log, ctx);
   const done = (steps: Step[]) => steps.filter((s) => log?.checks?.[s.id]).length;
-  const night = nightSteps(start, date);
+  const night = pmSteps(start, date, ctx);
+  const am = amSteps(ctx);
   const inside = insideSteps(start, date, ctx);
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -264,12 +273,12 @@ function TodayHero({ name, date, setDate, day, today, start, log, ctx }: { name:
         <div className="hero-copy">
           <div className="kicker">{greet}, {name.split(" ")[0]}</div>
           <h1>{day < 1 ? "Starts soon" : day > PLAN_DAYS ? <>Day {day}</> : <>Day {day} <em>of {PLAN_DAYS}</em></>}</h1>
-          <p className="hero-sub">{day >= 1 ? `Week ${weekOf(day)} · ` : ""}{NIGHT_LABEL[nightType(start, date)]} tonight</p>
+          <p className="hero-sub">{day >= 1 ? `Week ${weekOf(day)} · ` : ""}{NIGHT_LABEL[nightType(start, date, ctx)]} tonight</p>
         </div>
         <Ring pct={pct} />
       </div>
       <div className="hero-pills">
-        <span className="hp"><i className="dot sun" />Morning <b>{done(AM_STEPS)}/{AM_STEPS.length}</b></span>
+        <span className="hp"><i className="dot sun" />Morning <b>{done(am)}/{am.length}</b></span>
         <span className="hp"><i className="dot moon" />Night <b>{done(night)}/{night.length}</b></span>
         <span className="hp"><i className="dot leaf" />Food & habits <b>{done(inside)}/{inside.length}</b></span>
       </div>
@@ -325,8 +334,11 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
   setNote: (t: string) => void; setRating: (r: number) => void; setReaction: (v: boolean) => void;
   ctx: Ctx; hasProfile: boolean; openFood: () => void; openSettings: () => void;
 }) {
-  const nt = nightType(start, date);
+  const nt = nightType(start, date, ctx);
   const am = amSteps(ctx);
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
+  const [part, setPart] = useState<"am" | "pm" | "food" | "diary">(hour < 11 ? "am" : hour < 18 ? "food" : "pm");
+  const done = (steps: Step[]) => steps.filter((s) => log?.checks?.[s.id]).length;
   const night = pmSteps(start, date, ctx);
   const inside = insideSteps(start, date, ctx);
   const focus = focusFor(ctx.profile);
@@ -335,33 +347,43 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
   return (
     <>
       {day >= 1 && [1, 8, 15, 22].includes(day) && (
-        <div className="note-box teal news"><b>New this week ·</b> {WEEK_NEWS[weekOf(day) - 1]}</div>
+        <div className="note-box teal news"><b>New this week ·</b> {weekNews(ctx.sel, ctx.profile)[weekOf(day) - 1]}</div>
       )}
 
-      <section className="foryou">
-        <div className="fy-head">
+      <details className="foryou">
+        <summary className="fy-head">
           <div>
-            <div className="kicker">Made for you · {ctx.profile.gender === "female" ? "Woman" : "Man"} · {AGE_LABEL[ctx.profile.age]} · {DIET_LABEL[ctx.profile.diet]}</div>
+            <div className="kicker">Made for you · {ctx.profile.gender === "female" ? "Woman" : "Man"} · {AGE_LABEL[ctx.profile.age]} · {SKIN_LABEL[ctx.profile.skin]} skin</div>
             <h2>{focus.title}</h2>
           </div>
-          <button className="ghost-btn" onClick={openSettings}>{hasProfile ? "Change" : "Set my profile"}</button>
-        </div>
-        <ul className="fy-tips">{focus.tips.slice(0, 3).map((t) => <li key={t}>{t}</li>)}</ul>
-      </section>
+          <span className="fy-more">Tips ▾</span>
+        </summary>
+        <ul className="fy-tips">{focus.tips.slice(0, 4).map((t) => <li key={t}>{t}</li>)}</ul>
+        <button className="link-btn" onClick={openSettings}>{hasProfile ? "Change my answers →" : "Answer 6 quick questions for your own routine →"}</button>
+      </details>
 
-      <div className="today-grid">
-      <section className="card">
+      <div className="today-tabs" role="tablist">
+        {([["am", "☀️", "Morning", am], ["pm", "🌙", "Night", night], ["food", "🥗", "Food", inside], ["diary", "📝", "Diary", null]] as const).map(([k, ic, l, st]) => (
+          <button key={k} role="tab" aria-selected={part === k} className={part === k ? "on" : ""} onClick={() => setPart(k)}>
+            <span className="tt-ic">{ic}</span><span className="tt-l">{l}</span>
+            <small>{st ? `${done(st as Step[])}/${(st as Step[]).length}` : log?.rating || log?.note ? "✓" : "—"}</small>
+          </button>
+        ))}
+      </div>
+
+      <div className="today-one">
+      {part === "am" && <section className="card">
         <SecHead kind="sun" kicker="Morning · after waking" title="Face routine" steps={am} log={log} />
         <Checklist steps={am} log={log} toggle={toggle} />
-      </section>
+      </section>}
 
-      <section className="card">
+      {part === "pm" && <section className="card">
         <SecHead kind="moon" kicker="Tonight · before bed" title={NIGHT_LABEL[nt]} steps={night} log={log} />
-        <p className="sec-note">{NIGHT_NOTE[nt]}</p>
+        <p className="sec-note">{nightNote(nt, ctx.sel)}</p>
         <Checklist steps={night} log={log} toggle={toggle} />
-      </section>
+      </section>}
 
-      <section className="card">
+      {part === "food" && <section className="card">
         <SecHead kind="leaf" kicker="Inside out · your food plan" title="Food, drinks & habits" steps={inside} log={log} />
         {empty.length > 0 && (
           <button className="slot-warn" onClick={openFood}>
@@ -370,9 +392,9 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
         )}
         <Checklist steps={inside} log={log} toggle={toggle} />
         <button className="link-btn" onClick={openFood}>Change my food plan →</button>
-      </section>
+      </section>}
 
-      <section className="card">
+      {part === "diary" && <section className="card">
         <SecHead kind="note" kicker="Diary" title="How did the skin feel?" />
         <div className="rating" role="group" aria-label="Skin rating">
           {["Bad", "Meh", "OK", "Good", "Great"].map((l, i) => (
@@ -391,28 +413,22 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
         {log?.reaction && (
           <div className="note-box rose">Skip retinol and arbutin tonight. Use only cleanser + moisturizer until skin calms. If it lasts more than 2–3 days, stop the last new product and see a doctor.</div>
         )}
-      </section>
+      </section>}
       </div>
     </>
   );
 }
 
 /* ---------------- ROUTINE ---------------- */
-function RoutineView({ start, today, profile }: { start: string; today: string; profile: Profile }) {
+function RoutineView({ start, today, profile, ctx }: { start: string; today: string; profile: Profile; ctx: Ctx }) {
   const focus = focusFor(profile);
   const [seg, setSeg] = useState<"schedule" | "packs" | "rules">("schedule");
   const todayNum = dayNumber(start, today);
   const curWeek = todayNum >= 1 ? weekOf(todayNum) : 0;
   const wd = weekdayIdx(today);
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  // derive grid from the schedule using a reference Monday
-  const grid = [1, 2, 3, 4].map((w) => days.map((_, i) => {
-    // find a date in week w with weekday i
-    const startWd = weekdayIdx(start);
-    const offset = (w - 1) * 7 + ((i - startWd + 7) % 7);
-    return nightType(start, addDays(start, offset));
-  }));
-  const short = { basic: "Basic", normal: "Normal", retinol: "Retinol", pack: "Pack" } as const;
+  const grid = weekGrid(start, ctx.sel, ctx.profile);
+  const short = { basic: "Basic", normal: "Normal", retinol: "Retinol", pack: "Pack", bha: "Exfol." } as const;
 
   return (
     <>
@@ -432,26 +448,27 @@ function RoutineView({ start, today, profile }: { start: string; today: string; 
               {grid.map((row, wi) => (
                 <FragmentRow key={wi} label={`Wk ${wi + 1}`}>
                   {row.map((t, di) => (
-                    <div key={di} className={`cell ${t} ${curWeek === wi + 1 && wd === di ? "now" : ""}`}>{short[t]}</div>
+                    <div key={di} className={`cell ${t} ${curWeek === wi + 1 && wd === di ? "now" : ""}`} title={NIGHT_LABEL[t]}><span className="full">{short[t]}</span><span className="abbr">{short[t].charAt(0)}</span></div>
                   ))}
                 </FragmentRow>
               ))}
             </div>
             <div className="legend">
-              <span><i style={{ background: "var(--teal-soft)" }} />Basic / Normal</span>
-              <span><i style={{ background: "var(--rose-soft)" }} />Retinol</span>
-              <span><i style={{ background: "var(--gold-soft)" }} />Face pack</span>
+              <span><i style={{ background: "var(--blush)" }} />B Basic · N Normal</span>
+              {ctx.sel.retinoid && <span><i style={{ background: "#ece8f5" }} />R Retinol</span>}
+              {ctx.sel.bha && <span><i style={{ background: "var(--honey-soft)" }} />E Exfoliating</span>}
+              <span><i style={{ background: "var(--sage-soft)" }} />P Face pack</span>
             </div>
           </section>
           <section className="card">
             <h2>What each week adds</h2>
-            {WEEK_NEWS.map((w, i) => (
+            {weekNews(ctx.sel, ctx.profile).map((w, i) => (
               <div className="row" key={i}><div className="time">Week {i + 1}</div><div className="grow d" style={{ fontSize: 14, color: "var(--ink)" }}>{w}</div></div>
             ))}
           </section>
           <section className="card">
             <h2>Morning, every day</h2>
-            {AM_STEPS.map((s, i) => (
+            {amSteps(ctx).map((s, i) => (
               <div className="row" key={s.id}><div className="time">Step {i + 1}</div><div className="grow"><div className="t">{s.title}</div><div className="d">{s.detail}</div></div></div>
             ))}
           </section>
@@ -512,58 +529,83 @@ function FragmentRow({ label, children }: { label: string; children: React.React
 }
 
 /* ---------------- PRODUCTS ---------------- */
-function ProductsView({ status, setProduct }: { status: Record<string, string>; setProduct: (id: string, s: string) => void }) {
-  const owned = PRODUCTS.filter((p) => status[p.id] && status[p.id] !== "none").length;
-  const low = PRODUCTS.filter((p) => status[p.id] === "low" || status[p.id] === "finished");
-  const opts: [string, string][] = [["none", "Not bought"], ["bought", "Bought"], ["using", "Using"], ["low", "Running low"], ["finished", "Finished"]];
+const TONES = ["#F3DCD0", "#F6E7C9", "#DDE7D8", "#EADFF0", "#F7D9D2", "#E4ECEF"];
+const STATUS_OPTS: [string, string][] = [["none", "Not bought"], ["bought", "Bought"], ["using", "Using"], ["low", "Running low"], ["finished", "Finished"]];
+
+function ProductArt({ p, i, status }: { p: Product; i: number; status?: string }) {
+  return (
+    <div className="prod-art" style={{ background: TONES[i % TONES.length] }}>
+      <span className={`bottle b${i % 3}`}><span className="cap" /><span className="label">{p.short.split(" ")[0]}</span></span>
+      {status && status !== "none" && <span className={`status-tag ${status}`}>{STATUS_OPTS.find(([k]) => k === status)?.[1]}</span>}
+    </div>
+  );
+}
+
+function ProductsView({ status, setProduct, ctx, setProdPick }: {
+  status: Record<string, string>; setProduct: (id: string, s: string) => void; ctx: Ctx; setProdPick: (r: Role, id: string | null) => void;
+}) {
+  const [changing, setChanging] = useState<Role | null>(null);
+  const roles = Object.keys(ROLES) as Role[];
+  const mine = roles.filter((r) => ctx.sel[r]).map((r) => ctx.sel[r]!) as Product[];
+  const missing = roles.filter((r) => !ctx.sel[r]);
+  const defaults = defaultProducts(ctx.profile);
+  const owned = mine.filter((p) => status[p.id] && status[p.id] !== "none").length;
+  const low = mine.filter((p) => status[p.id] === "low" || status[p.id] === "finished");
+  const cost = mine.reduce((a, p) => a + p.price, 0);
+  const p = ctx.profile;
+
   return (
     <>
+      <p className="muted" style={{ margin: "14px 2px 0" }}>
+        Picked for <b>{SKIN_LABEL[p.skin].toLowerCase()} skin</b>{p.concerns.length ? <> · {p.concerns.map((c) => CONCERN_LABEL[c].toLowerCase()).join(", ")}</> : " · no big concerns"} · {SUN_LABEL[p.sun].toLowerCase()}.
+        Tap a card to see how to use it. Use <b>Change</b> to pick another product; your daily routine updates by itself.
+      </p>
       <div className="stats">
-        <div className="stat"><b>{owned}/{PRODUCTS.length}</b><span>bought</span></div>
-        <div className="stat"><b>{low.length}</b><span>to re-order</span></div>
-        <div className="stat"><b>₹4,023</b><span>full set</span></div>
+        <div className="stat"><b>{mine.length}</b><span>in your routine</span></div>
+        <div className="stat"><b>{owned}/{mine.length}</b><span>bought</span></div>
+        <div className="stat"><b>{rupees(cost)}</b><span>full set</span></div>
       </div>
-      {low.length > 0 && (
-        <div className="note-box gold" style={{ marginTop: 12 }}><b>Re-order soon:</b> {low.map((p) => p.name).join(", ")}</div>
-      )}
-      <p className="muted" style={{ margin: "14px 2px 0" }}>Tap a product to flip it and see how it helps and exactly how to use it.</p>
+      {low.length > 0 && <div className="note-box gold" style={{ marginTop: 12 }}><b>Re-order soon:</b> {low.map((x) => x.name).join(", ")}</div>}
+
       <div className="prod-grid">
-        {PRODUCTS.map((p, i) => {
-          const s = status[p.id] || "none";
-          const tones = ["#F3DCD0", "#F6E7C9", "#DDE7D8", "#EADFF0", "#F7D9D2", "#E4ECEF"];
+        {mine.map((pr, i) => {
+          const st = status[pr.id] || "none";
+          const role = pr.role;
           return (
-            <article className="prod" key={p.id}>
+            <article className="prod" key={pr.id}>
               <Flip
                 className="prod-flip"
                 front={<>
-                  <div className="prod-art" style={{ background: tones[i % tones.length] }}>
-                    <span className={`bottle b${i % 3}`}><span className="cap" /><span className="label">{p.name.split(" ")[0]}</span></span>
-                    {s !== "none" && <span className={`status-tag ${s}`}>{opts.find(([k]) => k === s)?.[1]}</span>}
-                  </div>
+                  <ProductArt p={pr} i={i} status={st} />
                   <div className="prod-body">
-                    <div className="kicker">{p.when}</div>
-                    <h3>{p.name}</h3>
-                    <p className="d">{p.does}</p>
+                    <div className="kicker">{ROLES[role].label} · {ROLES[role].when}</div>
+                    <h3>{pr.name}</h3>
+                    <p className="d">{pr.does}</p>
+                    <p className="for">For: {pr.forSkin}</p>
                   </div>
                 </>}
                 back={<>
-                  <div className="back-emoji">{p.emoji}</div>
-                  <h3>{p.name}</h3>
+                  <div className="back-emoji">{pr.emoji}</div>
+                  <h3>{pr.name}</h3>
                   <dl>
-                    <dt>How it helps</dt><dd>{p.does}</dd>
-                    <dt>How to use</dt><dd>{p.how}</dd>
-                    <dt>When</dt><dd>{p.when}</dd>
+                    <dt>How it helps</dt><dd>{pr.does}</dd>
+                    <dt>How to use</dt><dd>{pr.how}</dd>
+                    <dt>When</dt><dd>{ROLES[role].when}</dd>
                   </dl>
                 </>}
               />
               <div className="prod-foot">
                 <div className="prod-buy">
-                  <span><b className="price">{p.price}</b> <small className="muted">· {p.size}</small></span>
-                  <a className="buy-btn" href={p.url} target="_blank" rel="noopener noreferrer">Buy on Amazon</a>
+                  <span><b className="price">{rupees(pr.price)}</b> <small className="muted">· {pr.size}</small></span>
+                  <a className="buy-btn" href={amazonUrl(pr)} target="_blank" rel="noopener noreferrer">Amazon</a>
+                </div>
+                <div className="prod-actions">
+                  <button className="ghost-btn" onClick={() => setChanging(role)}>Change</button>
+                  {defaults[role] === pr.id ? <span className="sugg">✓ Suggested for you</span> : <span className="sugg mine">Your choice</span>}
                 </div>
                 <div className="chips">
-                  {opts.map(([k, l]) => (
-                    <button key={k} className={`chip ${s === k ? `on ${k}` : ""}`} onClick={() => setProduct(p.id, k)}>{l}</button>
+                  {STATUS_OPTS.map(([k, l]) => (
+                    <button key={k} className={`chip ${st === k ? `on ${k}` : ""}`} onClick={() => setProduct(pr.id, k)}>{l}</button>
                   ))}
                 </div>
               </div>
@@ -571,8 +613,85 @@ function ProductsView({ status, setProduct }: { status: Record<string, string>; 
           );
         })}
       </div>
-      <p className="muted small" style={{ marginTop: 10 }}>Prices checked on Amazon.in on 7 Nov 2026 and may change. Patch test each new product for 24 hours.</p>
+
+      {missing.length > 0 && (
+        <section className="card">
+          <h2>Add more to your routine</h2>
+          <p className="muted" style={{ margin: "4px 0 0" }}>Not needed for your answers, but you can add any of these. They go into your morning or night steps automatically.</p>
+          <div className="add-list">
+            {missing.flatMap((r) => CATALOG.filter((x) => x.role === r)).map((x) => (
+              <div className="add-row" key={x.id}>
+                <span className="add-emoji">{x.emoji}</span>
+                <div className="grow">
+                  <div className="kicker">{ROLES[x.role].label}</div>
+                  <div className="t">{x.name}</div>
+                  <div className="d">For: {x.forSkin} · {rupees(x.price)} · <a href={amazonUrl(x)} target="_blank" rel="noopener noreferrer">Amazon</a></div>
+                </div>
+                <button className="ghost-btn" onClick={() => setProdPick(x.role, x.id)}>+ Add</button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      <p className="muted small" style={{ marginTop: 10 }}>Prices checked on Amazon.in on 7 Nov 2026 and may change. No paid promotion. Patch test each new product for 24 hours.</p>
+
+      {changing && (
+        <div role="dialog" aria-modal="true" aria-label="Change product" className="sheet-bg" onClick={() => setChanging(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="card-head"><div><div className="kicker">{ROLES[changing].when}</div><h2>Choose your {ROLES[changing].label.toLowerCase()}</h2></div><button className="chip" onClick={() => setChanging(null)}>Close</button></div>
+            <div className="add-list">
+              {CATALOG.filter((x) => x.role === changing).map((x) => {
+                const on = ctx.sel[changing]?.id === x.id;
+                return (
+                  <div className={`add-row ${on ? "on" : ""}`} key={x.id}>
+                    <span className="add-emoji">{x.emoji}</span>
+                    <div className="grow">
+                      <div className="t">{x.name}{defaults[changing] === x.id && <span className="tag">Suggested</span>}</div>
+                      <div className="d">For: {x.forSkin}</div>
+                      <div className="d">{x.does}</div>
+                      <div className="d"><b>{rupees(x.price)}</b> · {x.size} · <a href={amazonUrl(x)} target="_blank" rel="noopener noreferrer">See on Amazon</a></div>
+                    </div>
+                    <button className={`ghost-btn ${on ? "on" : ""}`} disabled={on} onClick={() => { setProdPick(changing, x.id); setChanging(null); }}>{on ? "✓ Using" : "Use this"}</button>
+                  </div>
+                );
+              })}
+            </div>
+            {ROLES[changing].essential
+              ? <p className="muted small" style={{ marginTop: 12 }}>This is a basic step everyone needs, so it can be changed but not removed.</p>
+              : <button className="btn ghost" onClick={() => { setProdPick(changing, "none"); setChanging(null); }}>Remove this step from my routine</button>}
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+/* ---------------- ABOUT ---------------- */
+const SOURCES: [string, string][] = [
+  ["American Academy of Dermatology: how to apply sunscreen", "https://www.aad.org/sunscreen-apply"],
+  ["AAD: common sunscreen mistakes", "https://www.aad.org/public/everyday-care/sun-protection/shade-clothing-sunscreen/common-sunscreen-mistakes"],
+  ["AAD: retinoid or retinol?", "https://aad.org/public/everyday-care/skin-care-secrets/anti-aging/retinoid-retinol"],
+  ["MIMS India: melasma (dark patches) management", "https://www.mims.com/india/disease/melasma/management"],
+  ["Practical Dermatology: hyperpigmentation in darker skin types", "https://practicaldermatology.com/topics/pigmentary-disorders/hyperpigmentation-in-darker-skin-types-a-review-of-current-treatments/24217"],
+  ["Harvard Health: fruits & vegetables and health", "https://www.health.harvard.edu/staying-healthy/your-bonus-from-fruits-and-veggies"],
+  ["Amazon.in product pages (names, sizes, prices; checked 7 Nov 2026)", "https://www.amazon.in"],
+];
+function AboutDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-label="About and sources" className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="card-head"><h2>About this plan</h2><button className="chip" onClick={onClose}>Close</button></div>
+        <ul className="about-list">
+          <li><b>No promotion.</b> No brand pays for this and there are no affiliate links. Products are suggested for their ingredients and price; any similar product works.</li>
+          <li><b>A doctor&apos;s advice is always better.</b> This is general guidance only. For spreading patches, acne that won&apos;t settle, pregnancy, or any medicine, please see a dermatologist.</li>
+          <li><b>Go slow.</b> Patch test every new product on the jaw for 24–48 hours and add one product at a time.</li>
+        </ul>
+        <details className="sources">
+          <summary>Sources used</summary>
+          <ul>{SOURCES.map(([t, u]) => <li key={u}><a href={u} target="_blank" rel="noopener noreferrer">{t}</a></li>)}</ul>
+        </details>
+      </div>
+    </div>
   );
 }
 
@@ -773,7 +892,7 @@ function ResetDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
     <div role="dialog" aria-modal="true" aria-label="Reset" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
       <div className="card" style={{ width: "100%", maxWidth: 420, margin: 0 }} onClick={(e) => e.stopPropagation()}>
         <h2>Start over?</h2>
-        <p className="muted">This permanently deletes everything saved for this account: all ticks, ratings, diary notes, reaction flags and product statuses. Day 1 becomes today. Your login stays. This cannot be undone.</p>
+        <p className="muted">This permanently deletes everything saved for this account: all ticks, ratings, diary notes, reaction flags and product statuses. Your food plan and product choices go back to the suggestions. Day 1 becomes today. Your login stays. This cannot be undone.</p>
         {err && <div className="err">{err}</div>}
         <button className="btn" style={{ background: "var(--rose)" }} onClick={go} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</button>
         <button className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>

@@ -11,7 +11,7 @@ export async function POST() {
   const deleted = await (await logsCol()).deleteMany({ u: new ObjectId(uid) });
   await (await usersCol()).updateOne(
     { _id: new ObjectId(uid) },
-    { $set: { startDate: todayIST(), productStatus: {} }, $unset: { foodPicks: "" } }
+    { $set: { startDate: todayIST(), productStatus: {} }, $unset: { foodPicks: "", prodPicks: "" } }
   );
   return NextResponse.json({ ok: true, deleted: deleted.deletedCount });
 }

@@ -3,16 +3,14 @@ import bcrypt from "bcryptjs";
 import { ObjectId } from "mongodb";
 import { usersCol, todayIST } from "@/lib/db";
 import { createSession } from "@/lib/auth";
-import { AGE_GROUPS } from "@/lib/profile";
+import { cleanProfile } from "@/lib/profile";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const name = String(body.name || "").trim().slice(0, 60);
   const username = String(body.username || "").trim().toLowerCase();
   const password = String(body.password || "");
-  const pr = body.profile || {};
-  const profile = ["female", "male"].includes(pr.gender) && AGE_GROUPS.includes(pr.age) && ["veg", "egg", "nonveg"].includes(pr.diet)
-    ? { gender: pr.gender, age: pr.age, diet: pr.diet } : undefined;
+  const profile = cleanProfile(body.profile) || undefined;
 
   if (!name) return NextResponse.json({ error: "Please enter your name." }, { status: 400 });
   if (!/^[a-z0-9_.]{3,30}$/.test(username)) {

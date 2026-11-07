@@ -2,16 +2,41 @@
 export type Gender = "female" | "male";
 export type AgeGroup = "20s" | "30s" | "40s" | "50+";
 export type Diet = "veg" | "egg" | "nonveg";
-export type Profile = { gender: Gender; age: AgeGroup; diet: Diet };
+export type Skin = "normal" | "dry" | "oily" | "combination" | "sensitive";
+export type Concern = "spots" | "undereye" | "lines" | "acne" | "dull" | "pores";
+export type Sun = "indoor" | "some" | "outdoor";
+export type Profile = { gender: Gender; age: AgeGroup; diet: Diet; skin: Skin; concerns: Concern[]; sun: Sun };
+
+export const SKIN_LABEL: Record<Skin, string> = { normal: "Normal", dry: "Dry", oily: "Oily", combination: "Combination", sensitive: "Sensitive" };
+export const SKIN_HINT: Record<Skin, string> = {
+  normal: "Feels comfortable most of the day",
+  dry: "Feels tight or flaky after washing",
+  oily: "Shiny all over by afternoon",
+  combination: "Oily forehead/nose, normal or dry cheeks",
+  sensitive: "Turns red, itches or stings easily",
+};
+export const CONCERN_LABEL: Record<Concern, string> = {
+  spots: "Dark spots / tan", undereye: "Dark circles", lines: "Fine lines / loose skin", acne: "Pimples / acne", dull: "Dull skin", pores: "Oil & open pores",
+};
+export const SUN_LABEL: Record<Sun, string> = { indoor: "Mostly indoors", some: "Some sun daily", outdoor: "Outdoors a lot" };
 
 export const AGE_GROUPS: AgeGroup[] = ["20s", "30s", "40s", "50+"];
 export const AGE_LABEL: Record<AgeGroup, string> = { "20s": "20–29", "30s": "30–39", "40s": "40–49", "50+": "50+" };
 export const DIET_LABEL: Record<Diet, string> = { veg: "Vegetarian", egg: "Veg + eggs", nonveg: "Non-veg" };
-export const DEFAULT_PROFILE: Profile = { gender: "female", age: "30s", diet: "veg" };
+export const DEFAULT_PROFILE: Profile = { gender: "female", age: "30s", diet: "veg", skin: "normal", concerns: [], sun: "some" };
+// The starter account (Manorama): woman, 40s, veg + eggs, normal skin, spots + dark circles + loose skin.
+export const SEED_PROFILE: Profile = { gender: "female", age: "40s", diet: "egg", skin: "normal", concerns: ["spots", "undereye", "lines"], sun: "some" };
 
-export function isProfile(p: Partial<Profile> | undefined): p is Profile {
-  return !!p && (p.gender === "female" || p.gender === "male") && AGE_GROUPS.includes(p.age as AgeGroup) && ["veg", "egg", "nonveg"].includes(p.diet as string);
+/** Validate anything coming from the browser or an older saved profile; fills missing fields. */
+export function cleanProfile(x: unknown, base: Profile = DEFAULT_PROFILE): Profile | null {
+  const p = (x || {}) as Record<string, unknown>;
+  if (!["female", "male"].includes(p.gender as string) || !AGE_GROUPS.includes(p.age as AgeGroup) || !["veg", "egg", "nonveg"].includes(p.diet as string)) return null;
+  const skin = (Object.keys(SKIN_LABEL) as Skin[]).includes(p.skin as Skin) ? (p.skin as Skin) : base.skin;
+  const concerns = Array.isArray(p.concerns) ? [...new Set((p.concerns as string[]).filter((c) => c in CONCERN_LABEL))] as Concern[] : base.concerns;
+  const sun = (["indoor", "some", "outdoor"] as Sun[]).includes(p.sun as Sun) ? (p.sun as Sun) : base.sun;
+  return { gender: p.gender as Gender, age: p.age as AgeGroup, diet: p.diet as Diet, skin, concerns, sun };
 }
+
 
 // Nutrient / skin focus tags used to mark "Good for you" on food and remedy cards.
 export type Tag =
@@ -67,6 +92,13 @@ export function focusFor(p: Profile): { title: string; tags: Tag[]; tips: string
     if (!skin.includes("oily")) skin.push("oily");
   }
 
+  if (p.skin === "dry") { tips.unshift("Dry skin: lukewarm water only, apply moisturizer on slightly damp skin, and keep a cream for the night."); skin.push("dry"); }
+  if (p.skin === "oily") { tips.unshift("Oily skin still needs moisturizer: a light gel stops the skin making extra oil."); if (!skin.includes("oily")) skin.push("oily"); }
+  if (p.skin === "combination") tips.unshift("Combination skin: treat the T-zone (forehead, nose) for oil, keep cheeks moisturized.");
+  if (p.skin === "sensitive") tips.unshift("Sensitive skin: add one new product every 2 weeks and patch test each on the jaw for 2 days.");
+  if (p.concerns.includes("acne")) tips.unshift("Pimples: don't pop or scrub them; salicylic acid works slowly over 4–6 weeks. Change pillow covers twice a week.");
+  if (p.sun === "outdoor") tips.unshift("A lot of sun: reapply sunscreen every 2 hours outside and wear a cap or dupatta. This matters more than any serum.");
+  if (p.concerns.length === 0) tips.unshift("No big skin problems? Keep it simple: face wash, moisturizer and sunscreen are enough. Add serums only if you want.");
   if (p.diet === "veg") tips.push("Vegetarian: get B12 checked once a year, and have dahi, paneer or sprouts at every meal for protein.");
   return { title, tags: [...tags], tips, skin };
 }

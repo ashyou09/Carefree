@@ -3,9 +3,10 @@ import { ObjectId } from "mongodb";
 import { logsCol } from "@/lib/db";
 import { currentUserId } from "@/lib/auth";
 import { CHECK_IDS } from "@/lib/plan";
+import { ALL_CHECK_IDS } from "@/lib/routine";
 import { FOODS, LIFESTYLE } from "@/lib/foods";
 
-const VALID = new Set([...CHECK_IDS, ...LIFESTYLE.map((s) => s.id), ...FOODS.map((f) => `f_${f.id}`)]);
+const VALID = new Set([...CHECK_IDS, ...ALL_CHECK_IDS, ...LIFESTYLE.map((s) => s.id), ...FOODS.map((f) => `f_${f.id}`)]);
 
 // GET: all day logs of the logged-in person, expanded to the shape the app uses.
 export async function GET() {
