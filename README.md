@@ -30,15 +30,14 @@ npm run dev                  # http://localhost:3000
    - *Network Access* → Add IP Address → `0.0.0.0/0` (Vercel uses changing IPs).
    - *Database* → Connect → Drivers → copy the `mongodb+srv://…` string and put your user's password in it.
 2. **Vercel** → Add New Project → import this GitHub repo.
-3. In *Environment Variables* add:
+3. In *Environment Variables* add (only `MONGODB_URI` is required):
    | Name | Value |
    |---|---|
    | `MONGODB_URI` | your connection string |
    | `MONGODB_DB` | `skinplan` |
-   | `AUTH_SECRET` | output of `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-   | `SEED_USERNAME` | `manorama` |
-   | `SEED_NAME` | `Manorama` |
-   | `SEED_PASSWORD` | the first password |
+
+   Optional: `AUTH_SECRET` (otherwise generated and stored in the DB), `SEED_USERNAME` / `SEED_NAME` / `SEED_PASSWORD`
+   (default first account: `manorama` / `12345678`).
 4. Deploy. Open the site and log in.
 
 ## Data model

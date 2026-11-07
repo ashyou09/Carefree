@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
 
+// Light check only: is there a session cookie? The real signature check
+// happens in the API routes (Node runtime), which return 401 for a bad
+// cookie; the app then sends the person to /login.
 const PUBLIC = ["/login", "/signup", "/api/auth/login", "/api/auth/signup"];
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const token = req.cookies.get("sp_session")?.value;
-  let ok = false;
-  if (token && process.env.AUTH_SECRET) {
-    try {
-      await jwtVerify(token, new TextEncoder().encode(process.env.AUTH_SECRET));
-      ok = true;
-    } catch {}
-  }
+  const hasCookie = !!req.cookies.get("sp_session")?.value;
   const isPublic = PUBLIC.some((p) => pathname.startsWith(p));
-  if (!ok && !isPublic) {
+  if (!hasCookie && !isPublic) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Not logged in" }, { status: 401 });
     return NextResponse.redirect(new URL("/login", req.url));
-  }
-  if (ok && (pathname === "/login" || pathname === "/signup")) {
-    return NextResponse.redirect(new URL("/", req.url));
   }
   return NextResponse.next();
 }
