@@ -12,7 +12,7 @@
 
 ## The real-life problem
 
-My mother is 42. Like a lot of people, she wanted to fix dark spots, under-eye darkness and loosening skin, and started the way most people do: a few reels, a cart full of serums, and a dozen home remedies from relatives.
+This started with one real person: a 42-year-old woman with normal skin, low blood pressure and a vegetarian diet who wanted to fix dark spots, under-eye darkness and loosening skin. She started the way most people do: a few reels, a cart full of serums, and a dozen home remedies from relatives.
 
 That approach fails for ordinary reasons:
 
