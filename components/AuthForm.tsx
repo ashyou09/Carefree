@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import PasswordInput from "./PasswordInput";
+import { Logo, Leaves } from "./Art";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [name, setName] = useState("");
@@ -34,14 +35,22 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
   return (
     <main className="auth">
-      <div className="auth-card">
-        <div className="auth-top">
-          <div className="brand">Carefree</div>
-          <div className="pill" style={{ marginTop: 10 }}>30-day skin &amp; gut ritual</div>
-          <h1 style={{ marginTop: 10 }}>{isSignup ? "Create your account" : "Welcome back"}</h1>
-          <p>{isSignup ? "Start your own 30-day skin & gut routine." : "Log in to see today's routine."}</p>
-        </div>
-        <form className="auth-body" onSubmit={submit}>
+      <section className="auth-art">
+        <Leaves />
+        <div className="brand-row" style={{ position: "relative" }}><Logo /><span className="brand">Carefree</span></div>
+        <h1>Your 30-day <em>skin &amp; gut</em> ritual</h1>
+        <p>A gentle morning and night routine, simple Indian food habits and a daily tracker, all in one place.</p>
+        <ul className="auth-feats">
+          <li><span>1</span>Today&apos;s steps, ready every morning and night</li>
+          <li><span>2</span>Serums introduced slowly, week by week</li>
+          <li><span>3</span>Progress saved and synced across devices</li>
+        </ul>
+      </section>
+
+      <section className="auth-side">
+        <form className="auth-card" onSubmit={submit}>
+          <h2>{isSignup ? "Create your account" : "Welcome back"}</h2>
+          <p className="muted">{isSignup ? "Start your own 30-day plan." : "Log in to see today's routine."}</p>
           {isSignup && (
             <>
               <label htmlFor="name">Your name</label>
@@ -49,25 +58,9 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             </>
           )}
           <label htmlFor="username">Login ID</label>
-          <input
-            id="username"
-            className="input"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
-            autoCapitalize="none"
-            spellCheck={false}
-            required
-          />
+          <input id="username" className="input" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" spellCheck={false} required />
           <label htmlFor="password">Password</label>
-          <PasswordInput
-            id="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={isSignup ? "new-password" : "current-password"}
-            minLength={isSignup ? 8 : undefined}
-            required
-          />
+          <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={isSignup ? "new-password" : "current-password"} minLength={isSignup ? 8 : undefined} required />
           {isSignup && (
             <>
               <label htmlFor="confirm">Confirm password</label>
@@ -76,16 +69,12 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             </>
           )}
           {error && <div className="err" role="alert">{error}</div>}
-          <button className="btn" disabled={busy}>{busy ? "Please wait…" : isSignup ? "Sign up" : "Log in"}</button>
+          <button className="btn" disabled={busy}>{busy ? "Please wait…" : isSignup ? "Create account" : "Log in"}</button>
           <p className="switch">
-            {isSignup ? (
-              <>Already have an account? <Link href="/login">Log in</Link></>
-            ) : (
-              <>New here? <Link href="/signup">Create an account</Link></>
-            )}
+            {isSignup ? <>Already have an account? <Link href="/login">Log in</Link></> : <>New here? <Link href="/signup">Create an account</Link></>}
           </p>
         </form>
-      </div>
+      </section>
     </main>
   );
 }

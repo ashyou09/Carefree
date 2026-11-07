@@ -1,5 +1,6 @@
 "use client";
 import PasswordInput from "./PasswordInput";
+import { Logo, Leaves } from "./Art";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AM_STEPS, HABITS, PRODUCTS, RULES, PACKS, MEALS, DRINKS, LOW_BP, WEEK_NEWS,
@@ -111,7 +112,7 @@ export default function Dashboard() {
 
   if (!me) {
     return (
-      <main className="auth">
+      <main className="auth center">
         <p className="muted">{error || "Loading your plan…"}</p>
       </main>
     );
@@ -122,105 +123,174 @@ export default function Dashboard() {
   const todayNum = dayNumber(me.startDate, today);
   const log = logs[date];
 
+  const TABS: [Tab, string, React.ReactNode][] = [
+    ["today", "Today", <path key="a" d="M4 7h16M7 3v4m10-4v4M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zm4 9l2 2 4-4" />],
+    ["routine", "Routine", <path key="b" d="M12 3c3 3 5 6 5 9a5 5 0 01-10 0c0-3 2-6 5-9z" />],
+    ["products", "Products", <path key="c" d="M9 3h6v4l2 3v10a1 1 0 01-1 1H8a1 1 0 01-1-1V10l2-3V3zM7 13h10" />],
+    ["food", "Food", <path key="d" d="M5 11h14a7 7 0 01-14 0zM9 7c0-2 2-2 2-4m2 4c0-2 2-2 2-4" />],
+    ["progress", "Progress", <path key="e" d="M4 20V10m6 10V4m6 16v-7m4 7H2" />],
+  ];
+  const go = (id: Tab) => { setTab(id); if (id === "today") setDate(today); window.scrollTo(0, 0); };
+  const navIcon = (icon: React.ReactNode) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{icon}</svg>
+  );
+  const TITLES = { routine: ["The ritual", "Your routine"], products: ["Your shelf", "Products"], food: ["Inside out", "Food & drinks"], progress: ["30 days", "Your progress"] } as const;
+
   return (
-    <>
+    <div className="app">
       <div className={`saving ${saving ? "show" : ""}`}>Saving…</div>
-      {error && <div className="offline" role="status">{error}</div>}
 
-      <header className="hero">
-        <div className="hero-inner">
-          <div className="hero-top">
-            <span className="hello">Namaste, {me.name.split(" ")[0]}</span>
-            <span style={{ display: "flex", gap: 8 }}>
-              <button className="icon-btn" onClick={() => setShowReset(true)}>Reset</button>
-              <button className="icon-btn" onClick={() => setShowSettings(true)}>Settings</button>
-            </span>
-          </div>
-          {tab === "today" ? (
-            <TodayHero date={date} setDate={setDate} day={day} today={today} start={me.startDate} pct={completion(me.startDate, log)} />
-          ) : (
-            <>
-              <h1>{{ routine: "Your routine", products: "Products", food: "Food & drinks", progress: "Your progress" }[tab]}</h1>
-              <div className="sub">
-                {todayNum >= 1 ? `Day ${Math.min(todayNum, 999)} of ${PLAN_DAYS} · Week ${weekOf(todayNum)}` : `Plan starts ${prettyDate(me.startDate)}`}
-              </div>
-            </>
-          )}
-        </div>
-      </header>
-
-      <main className="wrap">
-        {tab === "today" && (
-          <TodayView start={me.startDate} date={date} day={day} log={log} toggle={toggle} setNote={setNote}
-            setRating={(r) => patchLog(date, { rating: r }, { rating: r })}
-            setReaction={(v) => patchLog(date, { reaction: v }, { reaction: v })} />
-        )}
-        {tab === "routine" && <RoutineView start={me.startDate} today={today} />}
-        {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} />}
-        {tab === "food" && <FoodView />}
-        {tab === "progress" && (
-          <ProgressView start={me.startDate} today={today} logs={logs} open={(d) => { setDate(d); setTab("today"); window.scrollTo(0, 0); }} />
-        )}
-      </main>
-
-      <nav className="tabbar" aria-label="Sections">
-        <div className="tabbar-inner">
-          {([
-            ["today", "Today", <path key="a" d="M4 7h16M7 3v4m10-4v4M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zm4 9l2 2 4-4" />],
-            ["routine", "Routine", <path key="b" d="M12 3a5 5 0 00-5 5c0 4 5 9 5 9s5-5 5-9a5 5 0 00-5-5zm0 15v3" />],
-            ["products", "Products", <path key="c" d="M9 3h6v4l2 3v10a1 1 0 01-1 1H8a1 1 0 01-1-1V10l2-3V3zM7 13h10" />],
-            ["food", "Food", <path key="d" d="M5 11h14a7 7 0 01-14 0zM9 7c0-2 2-2 2-4m2 4c0-2 2-2 2-4" />],
-            ["progress", "Progress", <path key="e" d="M4 20V10m6 10V4m6 16v-7m4 7H2" />],
-          ] as [Tab, string, React.ReactNode][]).map(([id, label, icon]) => (
-            <button key={id} className={tab === id ? "on" : ""} onClick={() => { setTab(id); if (id === "today") setDate(today); window.scrollTo(0, 0); }} aria-current={tab === id ? "page" : undefined}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
-              {label}
+      <aside className="side" aria-label="Main menu">
+        <div className="brand-row"><Logo /><span className="brand">Carefree</span></div>
+        <nav className="side-nav">
+          {TABS.map(([id, label, icon]) => (
+            <button key={id} className={tab === id ? "on" : ""} onClick={() => go(id)} aria-current={tab === id ? "page" : undefined}>
+              {navIcon(icon)}{label}
             </button>
           ))}
+        </nav>
+        <div className="side-foot">
+          <div className="who"><span className="avatar">{me.name.charAt(0).toUpperCase()}</span><div><b>{me.name}</b><small>@{me.username}</small></div></div>
+          <div className="side-actions">
+            <button className="ghost-btn" onClick={() => setShowSettings(true)}>Settings</button>
+            <button className="ghost-btn danger" onClick={() => setShowReset(true)}>Reset</button>
+          </div>
         </div>
+      </aside>
+
+      <div className="main">
+        <header className="topbar">
+          <div className="brand-row"><Logo /><span className="brand">Carefree</span></div>
+          <div className="top-actions">
+            <button className="ghost-btn danger" onClick={() => setShowReset(true)}>Reset</button>
+            <button className="ghost-btn" onClick={() => setShowSettings(true)} aria-label="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 11-4 0v-.1a1.6 1.6 0 00-2.7-1.1l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 003 15.4H3a2 2 0 110-4h.1A1.6 1.6 0 004.6 8.6l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 001.8.3H9a1.6 1.6 0 001-1.5V4a2 2 0 114 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H21a2 2 0 110 4h-.1a1.6 1.6 0 00-1.5 1z" /></svg>
+            </button>
+          </div>
+        </header>
+
+        {error && <div className="offline" role="status">{error}</div>}
+
+        <div className="wrap">
+          {tab === "today" ? (
+            <TodayHero name={me.name} date={date} setDate={setDate} day={day} today={today} start={me.startDate} log={log} />
+          ) : (
+            <header className="page-head">
+              <div className="kicker">{TITLES[tab][0]}</div>
+              <h1>{TITLES[tab][1]}</h1>
+              <p className="muted">{todayNum >= 1 ? `Day ${Math.min(todayNum, 999)} of ${PLAN_DAYS} · Week ${weekOf(todayNum)}` : `Plan starts ${prettyDate(me.startDate)}`}</p>
+            </header>
+          )}
+
+          {tab === "today" && (
+            <TodayView start={me.startDate} date={date} day={day} log={log} toggle={toggle} setNote={setNote}
+              setRating={(r) => patchLog(date, { rating: r }, { rating: r })}
+              setReaction={(v) => patchLog(date, { reaction: v }, { reaction: v })} />
+          )}
+          {tab === "routine" && <RoutineView start={me.startDate} today={today} />}
+          {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} />}
+          {tab === "food" && <FoodView />}
+          {tab === "progress" && (
+            <ProgressView start={me.startDate} today={today} logs={logs} open={(d) => { setDate(d); setTab("today"); window.scrollTo(0, 0); }} />
+          )}
+          <p className="foot">General wellness guidance, not medical advice. Patch test every new product.</p>
+        </div>
+      </div>
+
+      <nav className="tabbar" aria-label="Sections">
+        {TABS.map(([id, label, icon]) => (
+          <button key={id} className={tab === id ? "on" : ""} onClick={() => go(id)} aria-current={tab === id ? "page" : undefined}>
+            {navIcon(icon)}<span>{label}</span>
+          </button>
+        ))}
       </nav>
 
       {showReset && <ResetDialog onClose={() => setShowReset(false)} onDone={() => { setShowReset(false); setDate(todayIST()); setTab("today"); load(); }} />}
       {showSettings && <Settings me={me} onClose={() => setShowSettings(false)} onSaved={load} />}
-    </>
+    </div>
   );
 }
 
 /* ---------------- TODAY ---------------- */
-function TodayHero({ date, setDate, day, today, start, pct }: { date: string; setDate: (d: string) => void; day: number; today: string; start: string; pct: number }) {
-  const isToday = date === today;
+function Ring({ pct }: { pct: number }) {
+  const r = 46, c = 2 * Math.PI * r;
   return (
-    <>
-      <h1>{day < 1 ? "Starts soon" : day > PLAN_DAYS ? `Day ${day}` : `Day ${day} of ${PLAN_DAYS}`}</h1>
-      <div className="sub">
-        {day >= 1 ? `Week ${weekOf(day)} · ` : ""}{NIGHT_LABEL[nightType(start, date)]} tonight
+    <div className="ring" aria-label={`${Math.round(pct * 100)}% of today done`}>
+      <svg viewBox="0 0 110 110" aria-hidden>
+        <circle cx="55" cy="55" r={r} className="ring-bg" />
+        <circle cx="55" cy="55" r={r} className="ring-fg" strokeDasharray={c} strokeDashoffset={c * (1 - pct)} />
+      </svg>
+      <div className="ring-txt"><b>{Math.round(pct * 100)}<i>%</i></b><span>today</span></div>
+    </div>
+  );
+}
+
+function TodayHero({ name, date, setDate, day, today, start, log }: { name: string; date: string; setDate: (d: string) => void; day: number; today: string; start: string; log?: Log }) {
+  const isToday = date === today;
+  const pct = completion(start, log);
+  const done = (steps: Step[]) => steps.filter((s) => log?.checks?.[s.id]).length;
+  const night = nightSteps(start, date);
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
+  const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  return (
+    <section className="hero">
+      <Leaves />
+      <div className="hero-main">
+        <div className="hero-copy">
+          <div className="kicker">{greet}, {name.split(" ")[0]}</div>
+          <h1>{day < 1 ? "Starts soon" : day > PLAN_DAYS ? <>Day {day}</> : <>Day {day} <em>of {PLAN_DAYS}</em></>}</h1>
+          <p className="hero-sub">{day >= 1 ? `Week ${weekOf(day)} · ` : ""}{NIGHT_LABEL[nightType(start, date)]} tonight</p>
+        </div>
+        <Ring pct={pct} />
+      </div>
+      <div className="hero-pills">
+        <span className="hp"><i className="dot sun" />Morning <b>{done(AM_STEPS)}/{AM_STEPS.length}</b></span>
+        <span className="hp"><i className="dot moon" />Night <b>{done(night)}/{night.length}</b></span>
+        <span className="hp"><i className="dot leaf" />Habits <b>{done(HABITS)}/{HABITS.length}</b></span>
       </div>
       <div className="day-nav">
         <button aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>‹</button>
-        <span className="lbl">{isToday ? `Today · ${prettyDate(date)}` : prettyDate(date)}</span>
-        {!isToday && <button className="icon-btn" style={{ width: "auto" }} onClick={() => setDate(today)}>Today</button>}
-        <button aria-label="Next day" onClick={() => setDate(addDays(date, 1))} disabled={date >= today} style={{ opacity: date >= today ? 0.35 : 1 }}>›</button>
+        <span className="lbl">{isToday ? <>Today · {prettyDate(date)}</> : prettyDate(date)}</span>
+        {!isToday && <button className="today-btn" onClick={() => setDate(today)}>Back to today</button>}
+        <button aria-label="Next day" onClick={() => setDate(addDays(date, 1))} disabled={date >= today}>›</button>
       </div>
-      <div className="progress-bar" aria-label={`${Math.round(pct * 100)}% done`}><span style={{ width: `${Math.round(pct * 100)}%` }} /></div>
-    </>
+    </section>
   );
 }
 
 function Checklist({ steps, log, toggle }: { steps: Step[]; log?: Log; toggle: (id: string) => void }) {
   return (
-    <div>
-      {steps.map((s) => {
+    <div className="steps">
+      {steps.map((s, i) => {
         const on = !!log?.checks?.[s.id];
         return (
-          <button key={s.id} className={`check ${on ? "on" : ""}`} onClick={() => toggle(s.id)} aria-pressed={on}>
-            <span className="box"><Tick /></span>
-            <span>
-              <span className="t">{s.title}</span>{s.tag && <span className="tag">{s.tag}</span>}
-              <div className="d">{s.detail}</div>
+          <button key={s.id} className={`step ${on ? "on" : ""}`} onClick={() => toggle(s.id)} aria-pressed={on}>
+            <span className="num">{String(i + 1).padStart(2, "0")}</span>
+            <span className="body">
+              <span className="t">{s.title}{s.tag && <span className="tag">{s.tag}</span>}</span>
+              <span className="d">{s.detail}</span>
             </span>
+            <span className="tickc"><Tick /></span>
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function SecHead({ kind, kicker, title, steps, log }: { kind: "sun" | "moon" | "leaf" | "note"; kicker: string; title: string; steps?: Step[]; log?: Log }) {
+  const icons = {
+    sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4l1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
+    moon: <path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z" />,
+    leaf: <><path d="M5 19c1-8 6-13 15-14-1 9-6 14-15 14z" /><path d="M5 19c4-4 7-7 10-9" /></>,
+    note: <><path d="M5 4h14v16H5z" /><path d="M8 9h8M8 13h8M8 17h5" /></>,
+  };
+  const done = steps ? steps.filter((s) => log?.checks?.[s.id]).length : 0;
+  return (
+    <div className="sec-head">
+      <span className={`badge ${kind}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{icons[kind]}</svg></span>
+      <div className="grow"><div className="kicker">{kicker}</div><h2>{title}</h2></div>
+      {steps && <span className={`count-pill ${done === steps.length ? "full" : ""}`}>{done}/{steps.length}</span>}
     </div>
   );
 }
@@ -231,33 +301,32 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
 }) {
   const nt = nightType(start, date);
   const night = nightSteps(start, date);
-  const count = (steps: Step[]) => `${steps.filter((s) => log?.checks?.[s.id]).length}/${steps.length}`;
 
   return (
     <>
       {day >= 1 && [1, 8, 15, 22].includes(day) && (
-        <div className="note-box teal" style={{ marginTop: 12 }}><b>New this week:</b> {WEEK_NEWS[weekOf(day) - 1]}</div>
+        <div className="note-box teal news"><b>New this week ·</b> {WEEK_NEWS[weekOf(day) - 1]}</div>
       )}
 
+      <div className="today-grid">
       <section className="card">
-        <div className="card-head"><div><div className="kicker">Morning</div><h2>Face routine</h2></div><span className="count">{count(AM_STEPS)}</span></div>
+        <SecHead kind="sun" kicker="Morning · after waking" title="Face routine" steps={AM_STEPS} log={log} />
         <Checklist steps={AM_STEPS} log={log} toggle={toggle} />
       </section>
 
       <section className="card">
-        <div className="card-head"><div><div className="kicker">Tonight</div><h2>{NIGHT_LABEL[nt]}</h2></div><span className="count">{count(night)}</span></div>
-        <p className="muted" style={{ margin: "2px 0 6px" }}>{NIGHT_NOTE[nt]}</p>
+        <SecHead kind="moon" kicker="Tonight · before bed" title={NIGHT_LABEL[nt]} steps={night} log={log} />
+        <p className="sec-note">{NIGHT_NOTE[nt]}</p>
         <Checklist steps={night} log={log} toggle={toggle} />
       </section>
 
       <section className="card">
-        <div className="card-head"><div><div className="kicker">Inside out</div><h2>Food, water & habits</h2></div><span className="count">{count(HABITS)}</span></div>
+        <SecHead kind="leaf" kicker="Inside out" title="Food, water & habits" steps={HABITS} log={log} />
         <Checklist steps={HABITS} log={log} toggle={toggle} />
       </section>
 
       <section className="card">
-        <div className="kicker">Diary</div>
-        <h2>How did the skin feel?</h2>
+        <SecHead kind="note" kicker="Diary" title="How did the skin feel?" />
         <div className="rating" role="group" aria-label="Skin rating">
           {["Bad", "Meh", "OK", "Good", "Great"].map((l, i) => (
             <button key={l} className={log?.rating === i + 1 ? "on" : ""} onClick={() => setRating(i + 1)}>{l}</button>
@@ -276,6 +345,7 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
           <div className="note-box rose">Skip retinol and arbutin tonight. Use only cleanser + moisturizer until skin calms. If it lasts more than 2–3 days, stop the last new product and see a doctor.</div>
         )}
       </section>
+      </div>
     </>
   );
 }
@@ -389,28 +459,34 @@ function ProductsView({ status, setProduct }: { status: Record<string, string>; 
       {low.length > 0 && (
         <div className="note-box gold" style={{ marginTop: 12 }}><b>Re-order soon:</b> {low.map((p) => p.name).join(", ")}</div>
       )}
-      <section className="card">
-        {PRODUCTS.map((p) => {
+      <div className="prod-grid">
+        {PRODUCTS.map((p, i) => {
           const s = status[p.id] || "none";
+          const tones = ["#F3DCD0", "#F6E7C9", "#DDE7D8", "#EADFF0", "#F7D9D2", "#E4ECEF"];
           return (
-            <div className="row" key={p.id}>
-              <div className="grow">
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                  <div className="t">{p.name}</div><span className="price">{p.price}</span>
+            <article className="prod" key={p.id}>
+              <div className="prod-art" style={{ background: tones[i % tones.length] }}>
+                <span className={`bottle b${i % 3}`}><span className="cap" /><span className="label">{p.name.split(" ")[0]}</span></span>
+                {s !== "none" && <span className={`status-tag ${s}`}>{opts.find(([k]) => k === s)?.[1]}</span>}
+              </div>
+              <div className="prod-body">
+                <div className="kicker">{p.when}</div>
+                <h3>{p.name}</h3>
+                <p className="d">{p.does}</p>
+                <div className="prod-buy">
+                  <span><b className="price">{p.price}</b> <small className="muted">· {p.size}</small></span>
+                  <a className="buy-btn" href={p.url} target="_blank" rel="noopener noreferrer">Buy on Amazon</a>
                 </div>
-                <div className="d">{p.size} · {p.when}</div>
-                <div className="d" style={{ color: "var(--ink)" }}>{p.does}</div>
-                <a className="buy" href={p.url} target="_blank" rel="noopener noreferrer">Open on Amazon ↗</a>
                 <div className="chips">
                   {opts.map(([k, l]) => (
                     <button key={k} className={`chip ${s === k ? `on ${k}` : ""}`} onClick={() => setProduct(p.id, k)}>{l}</button>
                   ))}
                 </div>
               </div>
-            </div>
+            </article>
           );
         })}
-      </section>
+      </div>
       <p className="muted small" style={{ marginTop: 10 }}>Prices checked on Amazon.in on 7 Nov 2026 and may change. Patch test each new product for 24 hours.</p>
     </>
   );
