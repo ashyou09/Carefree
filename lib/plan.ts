@@ -8,19 +8,21 @@ export type Product = {
   when: string;
   price: string;
   url: string;
+  how?: string;
+  emoji?: string;
 };
 
 export const PRODUCTS: Product[] = [
-  { id: "cleanser", name: "Cetaphil Gentle Skin Hydrating Face Wash", size: "118 ml", does: "Mild, soap-free face wash that won't dry the skin.", when: "Morning + Night", price: "₹331", url: "https://www.amazon.in/dp/B01CCGW4OE" },
-  { id: "vitc", name: "Minimalist 10% Vitamin C Serum", size: "30 ml", does: "Brightens, fades spots, protects from sun damage.", when: "Morning", price: "₹615", url: "https://www.amazon.in/dp/B08MVBF4P8" },
-  { id: "spf", name: "Re'equil Ultra Matte Sunscreen SPF 50 PA++++", size: "50 g", does: "Blocks UV rays. Light, no white cast.", when: "Morning", price: "₹580", url: "https://www.amazon.in/dp/B07VP5JFRB" },
-  { id: "moist", name: "CeraVe Moisturizing Cream", size: "50 ml", does: "Repairs skin barrier; calms retinol dryness.", when: "Morning + Night", price: "₹367", url: "https://www.amazon.in/dp/B07CH8F17Q" },
-  { id: "nia", name: "Minimalist 10% Niacinamide Serum", size: "30 ml", does: "Evens tone, reduces spots, strengthens skin.", when: "Night", price: "₹508", url: "https://www.amazon.in/dp/B08F9MF314" },
-  { id: "arbutin", name: "Minimalist 2% Alpha Arbutin Serum", size: "30 ml", does: "Targets dark spots and pigmentation.", when: "Night (from Week 2)", price: "₹466", url: "https://www.amazon.in/dp/B08GGDRRQ8" },
-  { id: "retinol", name: "Minimalist 0.3% Retinol + Q10 Serum", size: "30 ml", does: "Firmness, fine lines, smoother texture.", when: "Night (from Week 3)", price: "₹527", url: "https://www.amazon.in/dp/B091JG3GJ5" },
-  { id: "eye", name: "Minimalist Vitamin K + Retinal Eye Cream", size: "14 g", does: "Under-eye darkness, puffiness, fine lines.", when: "Night", price: "₹449", url: "https://www.amazon.in/dp/B0CHYR58VF" },
-  { id: "vite", name: "Evion 400 Vitamin E (skin use only)", size: "20 caps", does: "Extra nourishment mixed into moisturizer. Not to swallow (low BP).", when: "Night, 2–3×/week", price: "₹86", url: "https://www.amazon.in/dp/B0C3VCMHCN" },
-  { id: "rose", name: "Dabur Gulabari Rose Water", size: "400 ml", does: "Gentle toner and for mixing face packs.", when: "Morning + Night", price: "₹94", url: "https://www.amazon.in/dp/B085QMJ3TS" },
+  { id: "cleanser", name: "Cetaphil Gentle Skin Hydrating Face Wash", size: "118 ml", does: "Mild, soap-free face wash that won't dry the skin.", when: "Morning + Night", price: "₹331", url: "https://www.amazon.in/dp/B01CCGW4OE", emoji: "🧴", how: "1 coin-size on wet face, massage 30 sec in circles, rinse with normal (not hot) water, pat dry. Morning and night." },
+  { id: "vitc", name: "Minimalist 10% Vitamin C Serum", size: "30 ml", does: "Brightens, fades spots, protects from sun damage.", when: "Morning", price: "₹615", url: "https://www.amazon.in/dp/B08MVBF4P8", emoji: "🍊", how: "Morning, after washing: 3–4 drops on face and neck, pat in. Wait 1–2 min, then moisturizer and sunscreen. Keep the bottle away from light." },
+  { id: "spf", name: "Re'equil Ultra Matte Sunscreen SPF 50 PA++++", size: "50 g", does: "Blocks UV rays. Light, no white cast.", when: "Morning", price: "₹580", url: "https://www.amazon.in/dp/B07VP5JFRB", emoji: "☀️", how: "Last step every morning: 2 finger-lengths for face and neck, plus ears. Even indoors near windows. Reapply every 2–3 hours outside." },
+  { id: "moist", name: "CeraVe Moisturizing Cream", size: "50 ml", does: "Repairs skin barrier; calms retinol dryness.", when: "Morning + Night", price: "₹367", url: "https://www.amazon.in/dp/B07CH8F17Q", emoji: "🫙", how: "Pea-size for the face, a little more for the neck. Morning after serum, and as the last step at night." },
+  { id: "nia", name: "Minimalist 10% Niacinamide Serum", size: "30 ml", does: "Evens tone, reduces spots, strengthens skin.", when: "Night", price: "₹508", url: "https://www.amazon.in/dp/B08F9MF314", emoji: "💧", how: "Night (from Week 1): 3 drops after washing, pat in, wait 1 min, then eye cream and moisturizer." },
+  { id: "arbutin", name: "Minimalist 2% Alpha Arbutin Serum", size: "30 ml", does: "Targets dark spots and pigmentation.", when: "Night (from Week 2)", price: "₹466", url: "https://www.amazon.in/dp/B08GGDRRQ8", emoji: "✨", how: "Night from Week 2: 3 drops on dry skin only where spots are, or the full face. Can be used on the same night as niacinamide." },
+  { id: "retinol", name: "Minimalist 0.3% Retinol + Q10 Serum", size: "30 ml", does: "Firmness, fine lines, smoother texture.", when: "Night (from Week 3)", price: "₹527", url: "https://www.amazon.in/dp/B091JG3GJ5", emoji: "🌙", how: "Retinol nights only (from Week 3): wait 5 min after washing, 1 pea-size for the full face, avoid eyes, nose corners and lips. Moisturizer after 10 min. Always sunscreen next day." },
+  { id: "eye", name: "Minimalist Vitamin K + Retinal Eye Cream", size: "14 g", does: "Under-eye darkness, puffiness, fine lines.", when: "Night", price: "₹449", url: "https://www.amazon.in/dp/B0CHYR58VF", emoji: "👁️", how: "Night: a rice-grain amount per eye, tap with the ring finger along the under-eye bone. Not on the eyelid." },
+  { id: "vite", name: "Evion 400 Vitamin E (skin use only)", size: "20 caps", does: "Extra nourishment mixed into moisturizer. Not to swallow (low BP).", when: "Night, 2–3×/week", price: "₹86", url: "https://www.amazon.in/dp/B0C3VCMHCN", emoji: "💊", how: "Skin only, 2–3 nights a week: pierce 1 capsule, mix the oil into your night moisturizer. Do not swallow (low BP)." },
+  { id: "rose", name: "Dabur Gulabari Rose Water", size: "400 ml", does: "Gentle toner and for mixing face packs.", when: "Morning + Night", price: "₹94", url: "https://www.amazon.in/dp/B085QMJ3TS", emoji: "🌹", how: "Toner after washing: spray or pat with cotton. Also used for mixing face packs." },
 ];
 
 export type Step = { id: string; title: string; detail: string; tag?: string };

@@ -3,6 +3,8 @@ import { useState } from "react";
 import Link from "next/link";
 import PasswordInput from "./PasswordInput";
 import { Logo, Leaves } from "./Art";
+import ProfilePicker from "./ProfilePicker";
+import { DEFAULT_PROFILE, type Profile } from "@/lib/profile";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [name, setName] = useState("");
@@ -11,6 +13,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
   const isSignup = mode === "signup";
 
   async function submit(e: React.FormEvent) {
@@ -22,7 +25,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       const res = await fetch(`/api/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isSignup ? { name, username, password } : { username, password }),
+        body: JSON.stringify(isSignup ? { name, username, password, profile } : { username, password }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Something went wrong. Try again.");
@@ -55,6 +58,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             <>
               <label htmlFor="name">Your name</label>
               <input id="name" className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
+              <label>About you</label>
+              <ProfilePicker value={profile} onChange={setProfile} />
             </>
           )}
           <label htmlFor="username">Login ID</label>

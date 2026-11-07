@@ -1,13 +1,18 @@
 "use client";
 import PasswordInput from "./PasswordInput";
 import { Logo, Leaves } from "./Art";
+import ProfilePicker from "./ProfilePicker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FOODS, SLOTS, LIFESTYLE, allowed, defaultPicks, foodSteps, slotPicks, type SlotId } from "@/lib/foods";
+import { REMEDIES, NEVER } from "@/lib/remedies";
+import { AGE_GROUPS, AGE_LABEL, DEFAULT_PROFILE, DIET_LABEL, TAG_LABEL, focusFor, type Profile } from "@/lib/profile";
 import {
-  AM_STEPS, HABITS, PRODUCTS, RULES, PACKS, MEALS, DRINKS, LOW_BP, WEEK_NEWS,
+  AM_STEPS, PRODUCTS, RULES, LOW_BP, WEEK_NEWS,
   NIGHT_LABEL, NIGHT_NOTE, nightSteps, nightType, dayNumber, weekOf, addDays, weekdayIdx, Step,
 } from "@/lib/plan";
 
-type Me = { name: string; username: string; startDate: string; productStatus: Record<string, string> };
+type Me = { name: string; username: string; startDate: string; productStatus: Record<string, string>; profile: Profile | null; foodPicks: string[] | null };
+type Ctx = { picks: string[]; profile: Profile };
 type Log = { date: string; checks?: Record<string, boolean>; rating?: number; note?: string; reaction?: boolean };
 type Tab = "today" | "routine" | "products" | "food" | "progress";
 
@@ -16,12 +21,23 @@ const todayIST = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkat
 const prettyDate = (d: string) =>
   new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
-function stepsFor(start: string, date: string): Step[] {
-  return [...AM_STEPS, ...nightSteps(start, date), ...HABITS];
+// Small wording changes by profile (shaving for men, makeup removal for women).
+function personal(steps: Step[], p: Profile): Step[] {
+  return steps.map((s) => {
+    if (s.id === "am_wash" && p.gender === "male") return { ...s, detail: s.detail + " Shave now if needed, then wait 2 min before serum." };
+    if (s.id === "pm_clean" && p.gender === "female") return { ...s, detail: "Remove kajal / makeup first. " + s.detail };
+    return s;
+  });
 }
-function completion(start: string, log?: Log) {
+const amSteps = (c: Ctx) => personal(AM_STEPS, c.profile);
+const pmSteps = (start: string, date: string, c: Ctx) => personal(nightSteps(start, date), c.profile);
+const insideSteps = (start: string, date: string, c: Ctx) => [...foodSteps(c.picks, c.profile.diet, start, date), ...LIFESTYLE];
+function stepsFor(start: string, date: string, c: Ctx): Step[] {
+  return [...amSteps(c), ...pmSteps(start, date, c), ...insideSteps(start, date, c)];
+}
+function completion(start: string, log: Log | undefined, c: Ctx) {
   if (!log) return 0;
-  const steps = stepsFor(start, log.date);
+  const steps = stepsFor(start, log.date, c);
   const done = steps.filter((s) => log.checks?.[s.id]).length;
   return done / steps.length;
 }
@@ -122,6 +138,13 @@ export default function Dashboard() {
   const day = dayNumber(me.startDate, date);
   const todayNum = dayNumber(me.startDate, today);
   const log = logs[date];
+  const profile: Profile = me.profile || DEFAULT_PROFILE;
+  const ctx: Ctx = { profile, picks: me.foodPicks || defaultPicks(profile) };
+  function setPicks(picks: string[]) {
+    if (!me) return;
+    setMe({ ...me, foodPicks: picks });
+    send("/api/me", "PATCH", { foodPicks: picks });
+  }
 
   const TABS: [Tab, string, React.ReactNode][] = [
     ["today", "Today", <path key="a" d="M4 7h16M7 3v4m10-4v4M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zm4 9l2 2 4-4" />],
@@ -173,7 +196,7 @@ export default function Dashboard() {
 
         <div className="wrap">
           {tab === "today" ? (
-            <TodayHero name={me.name} date={date} setDate={setDate} day={day} today={today} start={me.startDate} log={log} />
+            <TodayHero name={me.name} date={date} setDate={setDate} day={day} today={today} start={me.startDate} log={log} ctx={ctx} />
           ) : (
             <header className="page-head">
               <div className="kicker">{TITLES[tab][0]}</div>
@@ -183,15 +206,16 @@ export default function Dashboard() {
           )}
 
           {tab === "today" && (
-            <TodayView start={me.startDate} date={date} day={day} log={log} toggle={toggle} setNote={setNote}
+            <TodayView start={me.startDate} date={date} day={day} log={log} toggle={toggle} setNote={setNote} ctx={ctx} hasProfile={!!me.profile}
+              openFood={() => go("food")} openSettings={() => setShowSettings(true)}
               setRating={(r) => patchLog(date, { rating: r }, { rating: r })}
               setReaction={(v) => patchLog(date, { reaction: v }, { reaction: v })} />
           )}
-          {tab === "routine" && <RoutineView start={me.startDate} today={today} />}
+          {tab === "routine" && <RoutineView start={me.startDate} today={today} profile={profile} />}
           {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} />}
-          {tab === "food" && <FoodView />}
+          {tab === "food" && <FoodView profile={profile} picks={ctx.picks} setPicks={setPicks} />}
           {tab === "progress" && (
-            <ProgressView start={me.startDate} today={today} logs={logs} open={(d) => { setDate(d); setTab("today"); window.scrollTo(0, 0); }} />
+            <ProgressView start={me.startDate} today={today} logs={logs} ctx={ctx} open={(d) => { setDate(d); setTab("today"); window.scrollTo(0, 0); }} />
           )}
           <p className="foot">General wellness guidance, not medical advice. Patch test every new product.</p>
         </div>
@@ -206,7 +230,7 @@ export default function Dashboard() {
       </nav>
 
       {showReset && <ResetDialog onClose={() => setShowReset(false)} onDone={() => { setShowReset(false); setDate(todayIST()); setTab("today"); load(); }} />}
-      {showSettings && <Settings me={me} onClose={() => setShowSettings(false)} onSaved={load} />}
+      {showSettings && <Settings me={me} profile={profile} onClose={() => setShowSettings(false)} onSaved={load} />}
     </div>
   );
 }
@@ -225,11 +249,12 @@ function Ring({ pct }: { pct: number }) {
   );
 }
 
-function TodayHero({ name, date, setDate, day, today, start, log }: { name: string; date: string; setDate: (d: string) => void; day: number; today: string; start: string; log?: Log }) {
+function TodayHero({ name, date, setDate, day, today, start, log, ctx }: { name: string; date: string; setDate: (d: string) => void; day: number; today: string; start: string; log?: Log; ctx: Ctx }) {
   const isToday = date === today;
-  const pct = completion(start, log);
+  const pct = completion(start, log, ctx);
   const done = (steps: Step[]) => steps.filter((s) => log?.checks?.[s.id]).length;
   const night = nightSteps(start, date);
+  const inside = insideSteps(start, date, ctx);
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   return (
@@ -246,7 +271,7 @@ function TodayHero({ name, date, setDate, day, today, start, log }: { name: stri
       <div className="hero-pills">
         <span className="hp"><i className="dot sun" />Morning <b>{done(AM_STEPS)}/{AM_STEPS.length}</b></span>
         <span className="hp"><i className="dot moon" />Night <b>{done(night)}/{night.length}</b></span>
-        <span className="hp"><i className="dot leaf" />Habits <b>{done(HABITS)}/{HABITS.length}</b></span>
+        <span className="hp"><i className="dot leaf" />Food & habits <b>{done(inside)}/{inside.length}</b></span>
       </div>
       <div className="day-nav">
         <button aria-label="Previous day" onClick={() => setDate(addDays(date, -1))}>‹</button>
@@ -295,12 +320,17 @@ function SecHead({ kind, kicker, title, steps, log }: { kind: "sun" | "moon" | "
   );
 }
 
-function TodayView({ start, date, day, log, toggle, setNote, setRating, setReaction }: {
+function TodayView({ start, date, day, log, toggle, setNote, setRating, setReaction, ctx, hasProfile, openFood, openSettings }: {
   start: string; date: string; day: number; log?: Log; toggle: (id: string) => void;
   setNote: (t: string) => void; setRating: (r: number) => void; setReaction: (v: boolean) => void;
+  ctx: Ctx; hasProfile: boolean; openFood: () => void; openSettings: () => void;
 }) {
   const nt = nightType(start, date);
-  const night = nightSteps(start, date);
+  const am = amSteps(ctx);
+  const night = pmSteps(start, date, ctx);
+  const inside = insideSteps(start, date, ctx);
+  const focus = focusFor(ctx.profile);
+  const empty = SLOTS.filter((s) => !s.optional && !slotPicks(ctx.picks, ctx.profile.diet)[s.id].length);
 
   return (
     <>
@@ -308,10 +338,21 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
         <div className="note-box teal news"><b>New this week ·</b> {WEEK_NEWS[weekOf(day) - 1]}</div>
       )}
 
+      <section className="foryou">
+        <div className="fy-head">
+          <div>
+            <div className="kicker">Made for you · {ctx.profile.gender === "female" ? "Woman" : "Man"} · {AGE_LABEL[ctx.profile.age]} · {DIET_LABEL[ctx.profile.diet]}</div>
+            <h2>{focus.title}</h2>
+          </div>
+          <button className="ghost-btn" onClick={openSettings}>{hasProfile ? "Change" : "Set my profile"}</button>
+        </div>
+        <ul className="fy-tips">{focus.tips.slice(0, 3).map((t) => <li key={t}>{t}</li>)}</ul>
+      </section>
+
       <div className="today-grid">
       <section className="card">
-        <SecHead kind="sun" kicker="Morning · after waking" title="Face routine" steps={AM_STEPS} log={log} />
-        <Checklist steps={AM_STEPS} log={log} toggle={toggle} />
+        <SecHead kind="sun" kicker="Morning · after waking" title="Face routine" steps={am} log={log} />
+        <Checklist steps={am} log={log} toggle={toggle} />
       </section>
 
       <section className="card">
@@ -321,8 +362,14 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
       </section>
 
       <section className="card">
-        <SecHead kind="leaf" kicker="Inside out" title="Food, water & habits" steps={HABITS} log={log} />
-        <Checklist steps={HABITS} log={log} toggle={toggle} />
+        <SecHead kind="leaf" kicker="Inside out · your food plan" title="Food, drinks & habits" steps={inside} log={log} />
+        {empty.length > 0 && (
+          <button className="slot-warn" onClick={openFood}>
+            {empty.map((e) => e.label).join(", ")} {empty.length > 1 ? "slots are" : "slot is"} empty · <b>Pick food</b>
+          </button>
+        )}
+        <Checklist steps={inside} log={log} toggle={toggle} />
+        <button className="link-btn" onClick={openFood}>Change my food plan →</button>
       </section>
 
       <section className="card">
@@ -351,7 +398,8 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
 }
 
 /* ---------------- ROUTINE ---------------- */
-function RoutineView({ start, today }: { start: string; today: string }) {
+function RoutineView({ start, today, profile }: { start: string; today: string; profile: Profile }) {
+  const focus = focusFor(profile);
   const [seg, setSeg] = useState<"schedule" | "packs" | "rules">("schedule");
   const todayNum = dayNumber(start, today);
   const curWeek = todayNum >= 1 ? weekOf(todayNum) : 0;
@@ -370,7 +418,7 @@ function RoutineView({ start, today }: { start: string; today: string }) {
     <>
       <div className="seg">
         <button className={seg === "schedule" ? "on" : ""} onClick={() => setSeg("schedule")}>Schedule</button>
-        <button className={seg === "packs" ? "on" : ""} onClick={() => setSeg("packs")}>Face packs</button>
+        <button className={seg === "packs" ? "on" : ""} onClick={() => setSeg("packs")}>Remedies</button>
         <button className={seg === "rules" ? "on" : ""} onClick={() => setSeg("rules")}>Rules</button>
       </div>
 
@@ -411,21 +459,40 @@ function RoutineView({ start, today }: { start: string; today: string }) {
       )}
 
       {seg === "packs" && (
-        <section className="card">
-          <h2>Home face packs</h2>
-          <p className="muted" style={{ margin: "4px 0 0" }}>On face-pack nights only, never on retinol nights. Besan pack once a week; aloe or rose–dahi on the other.</p>
-          {PACKS.map((p) => (
-            <div className="row" key={p.name}>
-              <div className="grow">
-                <div className="t">{p.name}</div>
-                <div className="d"><b>Make:</b> {p.recipe}</div>
-                <div className="d"><b>Use:</b> {p.use}</div>
-                <div className="d"><b>Helps:</b> {p.benefit}</div>
-              </div>
-            </div>
-          ))}
-          <div className="note-box rose">Never put lemon, baking soda or toothpaste on the face — they make dark patches worse.</div>
-        </section>
+        <>
+          <p className="muted" style={{ margin: "14px 2px 0" }}>Tap a card to see how to make and use it. Use packs on face-pack nights, never on retinol nights. Patch test on the jaw first.</p>
+          <div className="flip-grid">
+            {REMEDIES.map((r) => {
+              const good = r.skin.some((k) => k !== "all" && focus.skin.includes(k));
+              return (
+                <article className="fcard" key={r.id}>
+                  <Flip
+                    front={<>
+                      <div className="pics">{r.pics.map((e, i) => <span key={i}>{e}</span>)}</div>
+                      {good && <span className="good">Good for you</span>}
+                      <div className="kicker">{r.concern}</div>
+                      <h3>{r.name}</h3>
+                      <p className="d">{r.often}</p>
+                    </>}
+                    back={<>
+                      <h3>{r.name}</h3>
+                      <dl>
+                        <dt>Make</dt><dd>{r.make}</dd>
+                        <dt>Use</dt><dd>{r.use}</dd>
+                        <dt>Helps</dt><dd>{r.helps}</dd>
+                        {r.avoid && <><dt>Careful</dt><dd>{r.avoid}</dd></>}
+                      </dl>
+                    </>}
+                  />
+                </article>
+              );
+            })}
+          </div>
+          <section className="card">
+            <h2>Never put these on your face</h2>
+            <div className="chips">{NEVER.map((n) => <span key={n} className="chip no">✕ {n}</span>)}</div>
+          </section>
+        </>
       )}
 
       {seg === "rules" && (
@@ -459,20 +526,37 @@ function ProductsView({ status, setProduct }: { status: Record<string, string>; 
       {low.length > 0 && (
         <div className="note-box gold" style={{ marginTop: 12 }}><b>Re-order soon:</b> {low.map((p) => p.name).join(", ")}</div>
       )}
+      <p className="muted" style={{ margin: "14px 2px 0" }}>Tap a product to flip it and see how it helps and exactly how to use it.</p>
       <div className="prod-grid">
         {PRODUCTS.map((p, i) => {
           const s = status[p.id] || "none";
           const tones = ["#F3DCD0", "#F6E7C9", "#DDE7D8", "#EADFF0", "#F7D9D2", "#E4ECEF"];
           return (
             <article className="prod" key={p.id}>
-              <div className="prod-art" style={{ background: tones[i % tones.length] }}>
-                <span className={`bottle b${i % 3}`}><span className="cap" /><span className="label">{p.name.split(" ")[0]}</span></span>
-                {s !== "none" && <span className={`status-tag ${s}`}>{opts.find(([k]) => k === s)?.[1]}</span>}
-              </div>
-              <div className="prod-body">
-                <div className="kicker">{p.when}</div>
-                <h3>{p.name}</h3>
-                <p className="d">{p.does}</p>
+              <Flip
+                className="prod-flip"
+                front={<>
+                  <div className="prod-art" style={{ background: tones[i % tones.length] }}>
+                    <span className={`bottle b${i % 3}`}><span className="cap" /><span className="label">{p.name.split(" ")[0]}</span></span>
+                    {s !== "none" && <span className={`status-tag ${s}`}>{opts.find(([k]) => k === s)?.[1]}</span>}
+                  </div>
+                  <div className="prod-body">
+                    <div className="kicker">{p.when}</div>
+                    <h3>{p.name}</h3>
+                    <p className="d">{p.does}</p>
+                  </div>
+                </>}
+                back={<>
+                  <div className="back-emoji">{p.emoji}</div>
+                  <h3>{p.name}</h3>
+                  <dl>
+                    <dt>How it helps</dt><dd>{p.does}</dd>
+                    <dt>How to use</dt><dd>{p.how}</dd>
+                    <dt>When</dt><dd>{p.when}</dd>
+                  </dl>
+                </>}
+              />
+              <div className="prod-foot">
                 <div className="prod-buy">
                   <span><b className="price">{p.price}</b> <small className="muted">· {p.size}</small></span>
                   <a className="buy-btn" href={p.url} target="_blank" rel="noopener noreferrer">Buy on Amazon</a>
@@ -492,63 +576,128 @@ function ProductsView({ status, setProduct }: { status: Record<string, string>; 
   );
 }
 
+/* ---------------- FLIP CARD ---------------- */
+function Flip({ front, back, className = "" }: { front: React.ReactNode; back: React.ReactNode; className?: string }) {
+  const [on, setOn] = useState(false);
+  return (
+    <div className={`flip ${on ? "on" : ""} ${className}`} role="button" tabIndex={0} aria-pressed={on}
+      onClick={() => setOn(!on)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOn(!on); } }}>
+      <div className="flip-in">
+        <div className="flip-face front">{front}<span className="flip-hint">Tap to see how ↻</span></div>
+        <div className="flip-face back">{back}<span className="flip-hint">Tap to flip back ↻</span></div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- FOOD ---------------- */
-function FoodView() {
-  const [seg, setSeg] = useState<"meals" | "drinks" | "bp">("meals");
-  const [egg, setEgg] = useState(false);
+function FoodView({ profile, picks, setPicks }: { profile: Profile; picks: string[]; setPicks: (p: string[]) => void }) {
+  const [filter, setFilter] = useState<"all" | "mine" | "good" | "drink" | SlotId>("all");
+  const focus = focusFor(profile);
+  const special = focus.tags.filter((t) => !["antioxidant", "hydration", "gut", "protein"].includes(t));
+  const grouped = slotPicks(picks, profile.diet);
+  const list = FOODS.filter(allowed(profile.diet)).filter((f) =>
+    filter === "all" ? true : filter === "mine" ? picks.includes(f.id) : filter === "good" ? f.tags.some((t) => special.includes(t))
+      : filter === "drink" ? f.kind === "drink" : f.slot === filter);
+  const toggle = (id: string) => setPicks(picks.includes(id) ? picks.filter((x) => x !== id) : [...picks, id]);
+  const filled = SLOTS.filter((s) => grouped[s.id].length).length;
+
   return (
     <>
-      <div className="seg">
-        <button className={seg === "meals" ? "on" : ""} onClick={() => setSeg("meals")}>Meals</button>
-        <button className={seg === "drinks" ? "on" : ""} onClick={() => setSeg("drinks")}>Drinks</button>
-        <button className={seg === "bp" ? "on" : ""} onClick={() => setSeg("bp")}>Low BP</button>
-      </div>
-      {seg === "meals" && (
-        <section className="card">
-          <div className="card-head"><h2>Daily meal plan</h2></div>
-          <div className="chips" style={{ marginTop: 4 }}>
-            <button className={`chip ${!egg ? "on" : ""}`} onClick={() => setEgg(false)}>Vegetarian</button>
-            <button className={`chip ${egg ? "on" : ""}`} onClick={() => setEgg(true)}>With eggs</button>
-          </div>
-          {MEALS.map((m) => (
-            <div className="row" key={m.time}>
-              <div className="time">{m.time}</div>
-              <div className="grow">
-                <div className="t">{m.title}</div>
-                <div className="d" style={{ color: "var(--ink)" }}>{egg && m.egg !== "Same" ? m.egg : m.veg}</div>
-                <div className="d">{m.note}</div>
+      <section className="card plan-card">
+        <div className="card-head">
+          <div><div className="kicker">Your day · {DIET_LABEL[profile.diet]}</div><h2>My food plan</h2></div>
+          <span className="count-pill">{filled}/{SLOTS.length} slots</span>
+        </div>
+        <p className="muted" style={{ margin: "6px 0 0" }}>Add foods from the cards below. Each one goes into its best time slot on its own. Two in one slot? They take turns, one each day.</p>
+        <div className="slots">
+          {SLOTS.map((sl) => {
+            const items = grouped[sl.id];
+            return (
+              <div key={sl.id} className={`slot ${items.length ? "" : sl.optional ? "opt" : "empty"}`}>
+                <div className="slot-time"><b>{sl.label}</b><small>{sl.time}</small></div>
+                <div className="slot-items">
+                  {items.length === 0 && (
+                    <button className="slot-empty" onClick={() => setFilter(sl.id)}>
+                      {sl.optional ? "Optional · add something" : `${sl.label} slot empty · choose`}
+                    </button>
+                  )}
+                  {items.map((f) => (
+                    <span key={f.id} className="slot-chip">{f.emoji} {f.name}<button aria-label={`Remove ${f.name}`} onClick={() => toggle(f.id)}>×</button></span>
+                  ))}
+                  {items.length > 1 && <span className="slot-note">{items.length} options · rotates daily</span>}
+                </div>
               </div>
-            </div>
-          ))}
-          <div className="note-box teal"><b>Add daily:</b> 1 tbsp roasted ground flaxseed on dahi or in roti dough. <b>Limit:</b> sugar, maida, fried snacks, more than 2 cups tea/coffee.</div>
-        </section>
-      )}
-      {seg === "drinks" && (
-        <section className="card">
-          <h2>Drinks (2.5 L a day)</h2>
-          {DRINKS.map((d) => (
-            <div className="row" key={d.name}><div className="grow"><div className="t">{d.name}</div><div className="d" style={{ color: "var(--ink)" }}>{d.recipe}</div><div className="d">{d.when}</div></div></div>
-          ))}
-        </section>
-      )}
-      {seg === "bp" && (
-        <section className="card">
-          <h2>Low blood pressure care</h2>
-          <ul className="clean">{LOW_BP.map((t) => <li key={t}>{t}</li>)}</ul>
-          <div className="note-box rose"><b>Vitamin E (Evion) only on the skin.</b> Pharmacy info lists low BP as a reason not to take it by mouth without a doctor&apos;s advice.</div>
-        </section>
-      )}
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="food-focus">
+        <span className="muted">Your focus:</span>
+        {special.map((t) => <span key={t} className="focus-tag">{TAG_LABEL[t]}</span>)}
+      </div>
+
+      <div className="filters">
+        {([["all", "All"], ["mine", "In my plan"], ["good", "Good for me"], ["drink", "Drinks"], ...SLOTS.map((s) => [s.id, s.label])] as [typeof filter, string][]).map(([k, l]) => (
+          <button key={k} className={`chip ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+        ))}
+      </div>
+
+      <div className="flip-grid">
+        {list.map((f) => {
+          const on = picks.includes(f.id);
+          const good = f.tags.some((t) => special.includes(t));
+          const sl = SLOTS.find((s) => s.id === f.slot)!;
+          return (
+            <article key={f.id} className={`fcard food ${on ? "picked" : ""}`}>
+              <Flip
+                front={<>
+                  <div className="food-emoji">{f.emoji}</div>
+                  {good && <span className="good">Good for you</span>}
+                  <div className="kicker">{sl.label}</div>
+                  <h3>{f.name}</h3>
+                  <p className="d">{sl.time}</p>
+                  <div className="mini-tags">{f.tags.slice(0, 3).map((t) => <span key={t}>{TAG_LABEL[t]}</span>)}</div>
+                </>}
+                back={<>
+                  <h3>{f.emoji} {f.name}</h3>
+                  <dl>
+                    <dt>How it helps skin</dt><dd>{f.helps}</dd>
+                    <dt>How to have it</dt><dd>{f.how}</dd>
+                    {f.caution && <><dt>Note</dt><dd>{f.caution}</dd></>}
+                  </dl>
+                </>}
+              />
+              <button className={`pick-btn ${on ? "on" : ""}`} onClick={() => toggle(f.id)} aria-pressed={on}>
+                {on ? "✓ In my plan" : `+ Add to ${sl.label.toLowerCase()}`}
+              </button>
+            </article>
+          );
+        })}
+        {list.length === 0 && <p className="muted">Nothing here yet. Try “All”.</p>}
+      </div>
+
+      <section className="card">
+        <h2>Eat less of</h2>
+        <div className="chips">{["Sugar & sweets", "Maida, biscuits", "Fried namkeen", "More than 2 cups tea/coffee", "Packaged juice", "Very late dinners"].map((n) => <span key={n} className="chip no">✕ {n}</span>)}</div>
+      </section>
+      <details className="card">
+        <summary><h2 style={{ display: "inline" }}>Low blood pressure care</h2></summary>
+        <ul className="clean">{LOW_BP.map((t) => <li key={t}>{t}</li>)}</ul>
+        <div className="note-box rose"><b>Vitamin E (Evion) only on the skin.</b> Don&apos;t take it by mouth with low BP unless a doctor says so.</div>
+      </details>
     </>
   );
 }
 
 /* ---------------- PROGRESS ---------------- */
-function ProgressView({ start, today, logs, open }: { start: string; today: string; logs: Record<string, Log>; open: (d: string) => void }) {
+function ProgressView({ start, today, logs, open, ctx }: { start: string; today: string; logs: Record<string, Log>; open: (d: string) => void; ctx: Ctx }) {
   const todayNum = dayNumber(start, today);
   const days = Array.from({ length: PLAN_DAYS }, (_, i) => addDays(start, i));
   const stats = useMemo(() => {
     const past = days.filter((d) => d <= today);
-    const fr = past.map((d) => completion(start, logs[d]));
+    const fr = past.map((d) => completion(start, logs[d], ctx));
     const good = fr.filter((f) => f >= 0.7).length;
     let streak = 0;
     for (let i = past.length - 1; i >= 0; i--) {
@@ -575,7 +724,7 @@ function ProgressView({ start, today, logs, open }: { start: string; today: stri
         <p className="muted" style={{ margin: "4px 0 0" }}>Tap a day to open or fill it.</p>
         <div className="tracker">
           {days.map((d, i) => {
-            const f = completion(start, logs[d]);
+            const f = completion(start, logs[d], ctx);
             const lvl = f >= 0.9 ? "l3" : f >= 0.6 ? "l2" : f > 0 ? "l1" : "";
             return (
               <button key={d} className={`tday ${lvl} ${d === today ? "today" : ""} ${d > today ? "future" : ""}`} onClick={() => d <= today && open(d)} disabled={d > today} aria-label={`Day ${i + 1}, ${Math.round(f * 100)}% done`}>
@@ -634,8 +783,14 @@ function ResetDialog({ onClose, onDone }: { onClose: () => void; onDone: () => v
 }
 
 /* ---------------- SETTINGS ---------------- */
-function Settings({ me, onClose, onSaved }: { me: Me; onClose: () => void; onSaved: () => void }) {
+function Settings({ me, profile, onClose, onSaved }: { me: Me; profile: Profile; onClose: () => void; onSaved: () => void }) {
   const [start, setStart] = useState(me.startDate);
+  const [prof, setProf] = useState<Profile>(profile);
+  async function saveProfile() {
+    const r = await fetch("/api/me", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profile: prof }) });
+    setMsg(r.ok ? { ok: true, text: "Profile saved. Tips and food cards are updated." } : { ok: false, text: "Couldn't save profile." });
+    if (r.ok) onSaved();
+  }
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -662,6 +817,10 @@ function Settings({ me, onClose, onSaved }: { me: Me; onClose: () => void; onSav
       <div className="card" style={{ width: "100%", maxWidth: 520, margin: 0, borderRadius: "22px 22px 0 0", maxHeight: "88vh", overflow: "auto", paddingBottom: 28 }} onClick={(e) => e.stopPropagation()}>
         <div className="card-head"><h2>Settings</h2><button className="chip" onClick={onClose}>Close</button></div>
         <p className="muted" style={{ margin: 0 }}>Logged in as <b>{me.username}</b></p>
+
+        <label>About you (changes tips, food and remedies)</label>
+        <ProfilePicker value={prof} onChange={setProf} />
+        <button className="btn ghost" onClick={saveProfile}>Save profile</button>
 
         <label htmlFor="start">Plan start date (Day 1)</label>
         <div style={{ display: "flex", gap: 8 }}>

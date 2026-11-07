@@ -8,18 +8,20 @@ export type UserDoc = {
   passwordHash: string;
   startDate: string; // YYYY-MM-DD (IST)
   productStatus: Record<string, string>;
+  profile?: { gender: string; age: string; diet: string };
+  foodPicks?: string[];
   createdAt: Date;
 };
 
+// Compact day log: short field names, only what is set. An empty day is deleted.
 export type LogDoc = {
   _id?: ObjectId;
-  userId: ObjectId;
-  date: string; // YYYY-MM-DD
-  checks: Record<string, boolean>;
-  rating?: number;
-  note?: string;
-  reaction?: boolean;
-  updatedAt: Date;
+  u: ObjectId;   // user id
+  d: string;     // date YYYY-MM-DD
+  c?: string[];  // ticked step ids (unticked = removed)
+  r?: number;    // skin rating 1–5
+  n?: string;    // diary note
+  x?: true;      // reaction flag (absent = no reaction)
 };
 
 const g = globalThis as unknown as { _mongo?: Promise<MongoClient>; _setup?: Promise<void> };
@@ -38,7 +40,23 @@ export function todayIST(): string {
 async function setup(db: Db) {
   const users = db.collection<UserDoc>("users");
   await users.createIndex({ username: 1 }, { unique: true });
-  await db.collection<LogDoc>("logs").createIndex({ userId: 1, date: 1 }, { unique: true });
+  const logs = db.collection("logs");
+  // one-time move from the old, longer log format
+  const old = await logs.find({ userId: { $exists: true } }).toArray();
+  if (old.length || (await logs.indexExists("userId_1_date_1").catch(() => false))) {
+    await logs.dropIndex("userId_1_date_1").catch(() => {});
+    for (const o of old) {
+      const c = Object.entries(o.checks || {}).filter(([, v]) => v).map(([k]) => k);
+      const doc: Record<string, unknown> = { u: o.userId, d: o.date };
+      if (c.length) doc.c = c;
+      if (o.rating) doc.r = o.rating;
+      if (o.note) doc.n = o.note;
+      if (o.reaction) doc.x = true;
+      await logs.deleteOne({ _id: o._id });
+      if (Object.keys(doc).length > 2) await logs.insertOne(doc).catch(() => {});
+    }
+  }
+  await logs.createIndex({ u: 1, d: 1 }, { unique: true });
 
   const username = (process.env.SEED_USERNAME || "manorama").toLowerCase();
   const password = process.env.SEED_PASSWORD || "12345678";
