@@ -1,4 +1,5 @@
 "use client";
+import PasswordInput from "./PasswordInput";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AM_STEPS, HABITS, PRODUCTS, RULES, PACKS, MEALS, DRINKS, LOW_BP, WEEK_NEWS,
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [showReset, setShowReset] = useState(false);
   const pending = useRef(0);
 
   const load = useCallback(async () => {
@@ -129,7 +131,10 @@ export default function Dashboard() {
         <div className="hero-inner">
           <div className="hero-top">
             <span className="hello">Namaste, {me.name.split(" ")[0]}</span>
-            <button className="icon-btn" onClick={() => setShowSettings(true)}>Settings</button>
+            <span style={{ display: "flex", gap: 8 }}>
+              <button className="icon-btn" onClick={() => setShowReset(true)}>Reset</button>
+              <button className="icon-btn" onClick={() => setShowSettings(true)}>Settings</button>
+            </span>
           </div>
           {tab === "today" ? (
             <TodayHero date={date} setDate={setDate} day={day} today={today} start={me.startDate} pct={completion(me.startDate, log)} />
@@ -175,6 +180,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
+      {showReset && <ResetDialog onClose={() => setShowReset(false)} onDone={() => { setShowReset(false); setDate(todayIST()); setTab("today"); load(); }} />}
       {showSettings && <Settings me={me} onClose={() => setShowSettings(false)} onSaved={load} />}
     </>
   );
@@ -226,15 +232,9 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
   const nt = nightType(start, date);
   const night = nightSteps(start, date);
   const count = (steps: Step[]) => `${steps.filter((s) => log?.checks?.[s.id]).length}/${steps.length}`;
-  const photoDay = [1, 15, 30].includes(day);
 
   return (
     <>
-      {photoDay && (
-        <div className="note-box gold" style={{ marginTop: 16 }}>
-          <b>Photo day!</b> Take 3 photos (front, left, right) in daylight near a window, no makeup, same place as before.
-        </div>
-      )}
       {day >= 1 && [1, 8, 15, 22].includes(day) && (
         <div className="note-box teal" style={{ marginTop: 12 }}><b>New this week:</b> {WEEK_NEWS[weekOf(day) - 1]}</div>
       )}
@@ -505,14 +505,14 @@ function ProgressView({ start, today, logs, open }: { start: string; today: stri
               <button key={d} className={`tday ${lvl} ${d === today ? "today" : ""} ${d > today ? "future" : ""}`} onClick={() => d <= today && open(d)} disabled={d > today} aria-label={`Day ${i + 1}, ${Math.round(f * 100)}% done`}>
                 {logs[d]?.reaction && <span className="dot" />}
                 {i + 1}
-                <small>{[1, 15, 30].includes(i + 1) ? "photo" : f ? `${Math.round(f * 100)}%` : ""}</small>
+                <small>{f ? `${Math.round(f * 100)}%` : ""}</small>
               </button>
             );
           })}
         </div>
         <div className="legend">
           <span><i style={{ background: "var(--teal-soft)" }} />Started</span>
-          <span><i style={{ background: "#9ccbc7" }} />60%+</span>
+          <span><i style={{ background: "var(--mid)" }} />60%+</span>
           <span><i style={{ background: "var(--teal)" }} />90%+</span>
           <span><i style={{ background: "var(--rose)", borderRadius: 99 }} />Reaction</span>
         </div>
@@ -532,6 +532,28 @@ function ProgressView({ start, today, logs, open }: { start: string; today: stri
         ))}
       </section>
     </>
+  );
+}
+
+/* ---------------- RESET ---------------- */
+function ResetDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  async function go() {
+    setBusy(true); setErr("");
+    const r = await fetch("/api/me/reset", { method: "POST" });
+    if (r.ok) onDone(); else { setErr("Couldn't reset. Try again."); setBusy(false); }
+  }
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Reset" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 40, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }} onClick={onClose}>
+      <div className="card" style={{ width: "100%", maxWidth: 420, margin: 0 }} onClick={(e) => e.stopPropagation()}>
+        <h2>Start over?</h2>
+        <p className="muted">This permanently deletes everything saved for this account: all ticks, ratings, diary notes, reaction flags and product statuses. Day 1 becomes today. Your login stays. This cannot be undone.</p>
+        {err && <div className="err">{err}</div>}
+        <button className="btn" style={{ background: "var(--rose)" }} onClick={go} disabled={busy}>{busy ? "Deleting…" : "Yes, delete everything"}</button>
+        <button className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>
+      </div>
+    </div>
   );
 }
 
@@ -573,8 +595,8 @@ function Settings({ me, onClose, onSaved }: { me: Me; onClose: () => void; onSav
 
         <form onSubmit={changePw}>
           <label htmlFor="cur">Change password</label>
-          <input id="cur" type="password" className="input" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" required />
-          <input type="password" className="input" style={{ marginTop: 8 }} placeholder="New password (8+ characters)" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" minLength={8} required />
+          <PasswordInput id="cur" placeholder="Current password" value={cur} onChange={(e) => setCur(e.target.value)} autoComplete="current-password" required />
+          <PasswordInput style={{ marginTop: 8 }} placeholder="New password (8+ characters)" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" minLength={8} required />
           <button className="btn ghost">Update password</button>
         </form>
 

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import PasswordInput from "./PasswordInput";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [name, setName] = useState("");
@@ -35,7 +36,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
     <main className="auth">
       <div className="auth-card">
         <div className="auth-top">
-          <div className="pill">30-day plan</div>
+          <div className="brand">Carefree</div>
+          <div className="pill" style={{ marginTop: 10 }}>30-day skin &amp; gut ritual</div>
           <h1 style={{ marginTop: 10 }}>{isSignup ? "Create your account" : "Welcome back"}</h1>
           <p>{isSignup ? "Start your own 30-day skin & gut routine." : "Log in to see today's routine."}</p>
         </div>
@@ -58,10 +60,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             required
           />
           <label htmlFor="password">Password</label>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
-            className="input"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete={isSignup ? "new-password" : "current-password"}
@@ -71,7 +71,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
           {isSignup && (
             <>
               <label htmlFor="confirm">Confirm password</label>
-              <input id="confirm" type="password" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
+              <PasswordInput id="confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
               <p className="muted small" style={{ margin: "8px 0 0" }}>At least 8 characters.</p>
             </>
           )}
