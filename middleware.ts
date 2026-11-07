@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 // Light check only: is there a session cookie? The real signature check
 // happens in the API routes (Node runtime), which return 401 for a bad
 // cookie; the app then sends the person to /login.
-const PUBLIC = ["/login", "/signup", "/api/auth/login", "/api/auth/signup"];
+const PUBLIC = ["/login", "/signup", "/api/auth/login", "/api/auth/signup", "/api/health"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
