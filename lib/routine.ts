@@ -195,7 +195,7 @@ export function nightSteps(start: string, date: string, s: Selection, p: Profile
   const eye = eyeTonight ? st("pm_eye", "Eye cream", s.eye) : [];
   const moist: Step[] = s.moist ? [{ id: "pm_moist", title: "Moisturizer", detail: `${s.moist.short}: ${s.moist.step} On dry areas add a little more.` }] : [];
   const vite = st("pm_vite", "Vitamin E (optional)", s.vite);
-  const pack: Step = { id: "pm_pack", title: "Face pack", detail: "Pick one from Routine → Remedies (besan–dahi, aloe–honey, rose–dahi…). 10–15 min, rinse gently.", tag: "Face pack night" };
+  const pack: Step = { id: "pm_pack", title: "Face pack", detail: "Pick one from Routine → My steps → Remedies (besan–dahi, aloe–honey, rose–dahi…). 10–15 min, rinse gently.", tag: "Face pack night" };
   switch (t) {
     case "basic": return [clean, ...nia, ...ha, ...eye, ...moist];
     case "normal": return [clean, ...(week > 1 ? arb : []), ...nia, ...ha, ...eye, ...moist, ...vite];

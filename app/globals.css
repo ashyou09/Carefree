@@ -611,3 +611,6 @@ details.foryou[open] .fy-more { opacity: .5; }
 .ps-sub { margin: 18px 0 0; font-size: 14px; }
 .style-row { flex-wrap: wrap; overflow: visible; }
 @media (max-width: 520px) { .style-row { display: grid; grid-template-columns: 1fr 1fr; } .style-chip { justify-content: flex-start; font-size: 13.5px; padding: 0 12px; } }
+.grid-title { font-family: var(--serif); font-weight: 500; font-size: 24px; margin: 26px 2px 0; }
+.fcard .pick-btn { text-align: center; }
+.seg button { white-space: nowrap; }

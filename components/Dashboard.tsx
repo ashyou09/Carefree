@@ -224,7 +224,7 @@ export default function Dashboard() {
               setRating={(r) => patchLog(date, { rating: r }, { rating: r })}
               setReaction={(v) => patchLog(date, { reaction: v }, { reaction: v })} />
           )}
-          {tab === "routine" && <RoutineView start={me.startDate} today={today} profile={profile} ctx={ctx} />}
+          {tab === "routine" && <RoutineView start={me.startDate} today={today} profile={profile} ctx={ctx} status={me.productStatus} setProduct={setProduct} setProdPick={setProdPick} />}
           {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} ctx={ctx} setProdPick={setProdPick} setGoal={setGoal} />}
           {tab === "food" && <FoodView profile={profile} picks={ctx.picks} setPicks={setPicks} />}
           {tab === "progress" && (
@@ -426,9 +426,20 @@ function TodayView({ start, date, day, log, toggle, setNote, setRating, setReact
 }
 
 /* ---------------- ROUTINE ---------------- */
-function RoutineView({ start, today, profile, ctx }: { start: string; today: string; profile: Profile; ctx: Ctx }) {
+function RoutineView({ start, today, profile, ctx, status, setProduct, setProdPick }: {
+  start: string; today: string; profile: Profile; ctx: Ctx; status: Record<string, string>;
+  setProduct: (id: string, s: string) => void; setProdPick: (r: Role, id: string | null) => void;
+}) {
   const focus = focusFor(profile);
-  const [seg, setSeg] = useState<"schedule" | "packs" | "rules">("schedule");
+  const [seg, setSeg] = useState<"steps" | "schedule" | "rules">("steps");
+  const [filter, setFilter] = useState<"all" | "am" | "pm" | "weekly" | "remedies">("all");
+  const [open, setOpen] = useState<Role | null>(null);
+  type Card = { key: string; when: "am" | "pm"; n: number; role: Role; p: Product };
+  const amCards: Card[] = AM_ROLES.filter((r) => ctx.sel[r]).map((r, i) => ({ key: "am_" + r, when: "am", n: i + 1, role: r, p: ctx.sel[r]! }));
+  const pmCards: Card[] = PM_ROLES.filter((r) => ctx.sel[r]).map((r, i) => ({ key: "pm_" + r, when: "pm", n: i + 1, role: r, p: ctx.sel[r]! }));
+  const weekly = (c: Card) => !!FREQ[c.role] && c.role !== "rose";
+  const cards = filter === "am" ? amCards : filter === "pm" ? pmCards : filter === "weekly" ? pmCards.filter(weekly) : filter === "remedies" ? [] : [...amCards, ...pmCards];
+  const showRemedies = filter === "all" || filter === "remedies" || filter === "weekly";
   const todayNum = dayNumber(start, today);
   const curWeek = todayNum >= 1 ? weekOf(todayNum) : 0;
   const wd = weekdayIdx(today);
@@ -439,8 +450,8 @@ function RoutineView({ start, today, profile, ctx }: { start: string; today: str
   return (
     <>
       <div className="seg">
+        <button className={seg === "steps" ? "on" : ""} onClick={() => setSeg("steps")}>My steps</button>
         <button className={seg === "schedule" ? "on" : ""} onClick={() => setSeg("schedule")}>Schedule</button>
-        <button className={seg === "packs" ? "on" : ""} onClick={() => setSeg("packs")}>Remedies</button>
         <button className={seg === "rules" ? "on" : ""} onClick={() => setSeg("rules")}>Rules</button>
       </div>
 
@@ -481,10 +492,65 @@ function RoutineView({ start, today, profile, ctx }: { start: string; today: str
         </>
       )}
 
-      {seg === "packs" && (
+      {seg === "steps" && (
         <>
-          <p className="muted" style={{ margin: "14px 2px 0" }}>Tap a card to see how to make and use it. Use packs on face-pack nights, never on retinol nights. Patch test on the jaw first.</p>
-          <div className="flip-grid">
+          <p className="muted" style={{ margin: "14px 2px 0" }}>Your routine as cards. Tap a card to see the benefit and how to use it.</p>
+          <div className="filters">
+            {([["all", "All"], ["am", "☀️ Morning"], ["pm", "🌙 Night"], ["weekly", "📅 Weekly"], ["remedies", "🌿 Remedies"]] as [typeof filter, string][]).map(([k, l]) => (
+              <button key={k} className={`chip ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+            ))}
+          </div>
+          {cards.length > 0 && (
+            <div className="flip-grid">
+              {cards.map((c, i) => (
+                <article key={c.key} className="fcard food">
+                  <Flip
+                    front={<>
+                      <div className="food-emoji" style={{ background: TONES[i % TONES.length] }}>{c.p.emoji}</div>
+                      <div className="kicker">{c.when === "am" ? "☀️ Morning" : "🌙 Night"} · step {c.n}</div>
+                      <h3>{ROLES[c.role].label}</h3>
+                      <p className="d">{c.p.short}</p>
+                      {FREQ[c.role] && <div className="mini-tags"><span>{FREQ[c.role]}</span></div>}
+                    </>}
+                    back={<>
+                      <h3>{c.p.emoji} {ROLES[c.role].label}</h3>
+                      <dl>
+                        <dt>Benefit</dt><dd>{c.p.does}</dd>
+                        <dt>How to use</dt><dd>{c.p.step}</dd>
+                        <dt>When</dt><dd>{c.when === "am" ? "Morning" : "Night"}{FREQ[c.role] ? ` · ${FREQ[c.role]}` : ""}</dd>
+                      </dl>
+                    </>}
+                  />
+                  <button className="pick-btn" onClick={() => setOpen(c.role)}>Product · {c.p.short} ›</button>
+                </article>
+              ))}
+              {(filter === "all" || filter === "weekly") && (
+                <article className="fcard food">
+                  <Flip
+                    front={<>
+                      <div className="food-emoji">🧖‍♀️</div>
+                      <div className="kicker">🌙 Night · weekly</div>
+                      <h3>Face pack</h3>
+                      <p className="d">Home remedy</p>
+                      <div className="mini-tags"><span>2 nights/week</span></div>
+                    </>}
+                    back={<>
+                      <h3>🧖‍♀️ Face pack</h3>
+                      <dl>
+                        <dt>Benefit</dt><dd>Gentle glow, softer texture and calmer skin, with things from the kitchen.</dd>
+                        <dt>How to use</dt><dd>On face-pack nights, after washing: 10–15 min, rinse, then your serum and moisturizer. Never on retinol nights.</dd>
+                      </dl>
+                    </>}
+                  />
+                  <button className="pick-btn" onClick={() => setFilter("remedies")}>See remedies ›</button>
+                </article>
+              )}
+            </div>
+          )}
+          {showRemedies && filter !== "weekly" && (
+            <>
+              {filter === "all" && <h2 className="grid-title">🌿 Home remedies</h2>}
+              <div className="flip-grid">
             {REMEDIES.map((r) => {
               const good = r.skin.some((k) => k !== "all" && focus.skin.includes(k));
               return (
@@ -515,8 +581,12 @@ function RoutineView({ start, today, profile, ctx }: { start: string; today: str
             <h2>Never put these on your face</h2>
             <div className="chips">{NEVER.map((n) => <span key={n} className="chip no">✕ {n}</span>)}</div>
           </section>
+            </>
+          )}
         </>
       )}
+
+      {open && <ProductSheet role={open} ctx={ctx} status={status} setProduct={setProduct} setProdPick={setProdPick} onClose={() => setOpen(null)} />}
 
       {seg === "rules" && (
         <section className="card">
