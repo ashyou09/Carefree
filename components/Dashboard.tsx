@@ -679,9 +679,9 @@ function ProductsView({ status, setProduct, ctx, setProdPick, setGoal, openSetti
           <div><div className="kicker">For {SKIN_LABEL[p.skin].toLowerCase()} skin</div><h2>My skincare plan</h2></div>
           <span className="count-pill">{mine.length} products</span>
         </div>
-        <p className="muted" style={{ margin: "6px 0 0" }}>Pick products from the cards below. Each one goes into its own step and into your morning or night routine by itself.</p>
+        <p className="muted" style={{ margin: "6px 0 0" }}>Only the products in your routine. Add more from the cards below and they appear here.</p>
         <div className="slots">
-          {ROLE_ORDER.map((r) => {
+          {ROLE_ORDER.filter((r) => ctx.sel[r] || ROLES[r].essential).map((r) => {
             const x = ctx.sel[r];
             const ess = ROLES[r].essential;
             return (
@@ -702,6 +702,9 @@ function ProductsView({ status, setProduct, ctx, setProdPick, setGoal, openSetti
             );
           })}
         </div>
+        <button className="slot-add" onClick={() => { setFilter("all"); setTimeout(() => gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); }}>
+          + Add another step from the cards below
+        </button>
       </section>
 
       <div ref={gridRef} className="filters" style={{ scrollMarginTop: 80, marginTop: 18 }}>
