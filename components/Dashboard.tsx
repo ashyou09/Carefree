@@ -7,7 +7,7 @@ import { FOODS, SLOTS, LIFESTYLE, allowed, defaultPicks, foodSteps, slotPicks, t
 import { REMEDIES, NEVER } from "@/lib/remedies";
 import { AGE_LABEL, CONCERN_LABEL, DEFAULT_PROFILE, GOALS, type Goal, DIET_LABEL, SKIN_LABEL, SUN_LABEL, TAG_LABEL, focusFor, type Profile } from "@/lib/profile";
 import {
-  CATALOG, ROLES, ROLE_ORDER, ROLE_GROUP, NIGHT_LABEL, amazonUrl, rupees, selection, defaultPicks as defaultProducts,
+  CATALOG, ROLES, ROLE_ORDER, NIGHT_LABEL, amazonUrl, rupees, selection, defaultPicks as defaultProducts,
   amSteps as amFor, nightSteps as pmFor, nightType as nightFor, nightNote, weekGrid, weekNews,
   type Picks, type Product, type Role, type Selection,
 } from "@/lib/routine";
@@ -538,135 +538,179 @@ function FragmentRow({ label, children }: { label: string; children: React.React
 const TONES = ["#F3DCD0", "#F6E7C9", "#DDE7D8", "#EADFF0", "#F7D9D2", "#E4ECEF"];
 const STATUS_OPTS: [string, string][] = [["none", "Not bought"], ["bought", "Bought"], ["using", "Using"], ["low", "Running low"], ["finished", "Finished"]];
 
+// Which routine steps appear in the morning list and the night list (in order), with how often.
+const AM_ROLES: Role[] = ["cleanser", "rose", "vitc", "ha", "moist", "spf"];
+const PM_ROLES: Role[] = ["cleanser", "ha", "arbutin", "nia", "bha", "retinoid", "eye", "moist", "vite"];
+const FREQ: Partial<Record<Role, string>> = { arbutin: "from week 2", bha: "2 nights/week", retinoid: "2–3 nights/week · from week 3", vite: "2–3 nights/week", rose: "optional" };
+
 function ProductsView({ status, setProduct, ctx, setProdPick, setGoal }: {
   status: Record<string, string>; setProduct: (id: string, s: string) => void; ctx: Ctx;
   setProdPick: (r: Role, id: string | null) => void; setGoal: (g: Goal) => void;
 }) {
-  const [filter, setFilter] = useState<"mine" | "all" | Role | string>("mine");
-  const gridRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState<Role | null>(null);
+  const [explore, setExplore] = useState(false);
+  const [flash, setFlash] = useState("");
   const p = ctx.profile;
   const goal = p.goal || "auto";
-  const defaults = defaultProducts(p);
-  const steps = ROLE_ORDER.filter((r) => ctx.sel[r]);
+  const g = GOALS.find((x) => x.id === goal)!;
+  const mine = ROLE_ORDER.filter((r) => ctx.sel[r]).map((r) => ctx.sel[r]!) as Product[];
   const missing = ROLE_ORDER.filter((r) => !ctx.sel[r]);
-  const mine = steps.map((r) => ctx.sel[r]!) as Product[];
-  const owned = mine.filter((x) => status[x.id] && status[x.id] !== "none").length;
   const toBuy = mine.filter((x) => !status[x.id] || status[x.id] === "none");
   const low = mine.filter((x) => status[x.id] === "low" || status[x.id] === "finished");
   const cost = toBuy.reduce((a, x) => a + x.price, 0);
+  const am = AM_ROLES.filter((r) => ctx.sel[r]);
+  const pm = PM_ROLES.filter((r) => ctx.sel[r]);
 
-  const show = (f: typeof filter) => { const g = ROLE_GROUP.find((x) => x.roles.length === 1 && x.roles[0] === f); setFilter(g ? g.label : f); setTimeout(() => gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 30); };
-  const group = ROLE_GROUP.find((g) => g.label === filter);
-  const list = CATALOG.filter((x) =>
-    filter === "all" ? true : filter === "mine" ? ctx.sel[x.role]?.id === x.id : group ? group.roles.includes(x.role) : x.role === filter);
+  function pickGoal(id: Goal) {
+    if (id === goal) return;
+    setGoal(id);
+    const n = ROLE_ORDER.filter((r) => selection({ ...p, goal: id }, {})[r]).length;
+    setFlash(`Routine updated: ${n} products. Today and Routine now follow “${GOALS.find((x) => x.id === id)!.title}”.`);
+    setTimeout(() => setFlash(""), 4000);
+  }
+
+  const Tile = ({ r, n }: { r: Role; n: number }) => {
+    const x = ctx.sel[r]!;
+    const st = status[x.id] || "none";
+    return (
+      <button className="r-tile" onClick={() => setOpen(r)}>
+        <span className="r-num">{n}</span>
+        <span className="r-emoji">{x.emoji}</span>
+        <span className="grow">
+          <span className="r-role">{ROLES[r].label}{FREQ[r] && <em> · {FREQ[r]}</em>}</span>
+          <span className="r-name">{x.short}</span>
+        </span>
+        {st !== "none" && <span className={`r-st ${st}`}>{STATUS_OPTS.find(([k]) => k === st)?.[1]}</span>}
+        <span className="r-go" aria-hidden>›</span>
+      </button>
+    );
+  };
 
   return (
     <>
       <section className="card">
-        <div className="kicker">Step 1</div>
-        <h2>Choose your routine style</h2>
-        <p className="muted" style={{ margin: "4px 0 0" }}>Not every face needs serums. Pick what you want; the steps and products change by themselves.</p>
-        <div className="goal-grid">
-          {GOALS.map((g) => (
-            <button key={g.id} className={`goal ${goal === g.id ? "on" : ""}`} onClick={() => goal !== g.id && setGoal(g.id)} aria-pressed={goal === g.id}>
-              <span className="goal-emoji">{g.emoji}</span>
-              <b>{g.title}</b>
-              <small>{g.line}</small>
-              {goal === g.id && <span className="goal-tick">✓</span>}
+        <div className="card-head"><div><div className="kicker">Routine style</div><h2>{g.emoji} {g.title}</h2></div></div>
+        <p className="muted" style={{ margin: "2px 0 0" }}>{g.line}.</p>
+        <div className="style-row" role="radiogroup" aria-label="Routine style">
+          {GOALS.map((x) => (
+            <button key={x.id} role="radio" aria-checked={goal === x.id} className={`style-chip ${goal === x.id ? "on" : ""}`} onClick={() => pickGoal(x.id)}>
+              <span>{x.emoji}</span>{x.title}
             </button>
           ))}
         </div>
-        <p className="muted small" style={{ margin: "10px 0 0" }}>
-          For {SKIN_LABEL[p.skin].toLowerCase()} skin{goal === "auto" && p.concerns.length ? <> · {p.concerns.map((c) => CONCERN_LABEL[c].toLowerCase()).join(", ")}</> : ""} · {SUN_LABEL[p.sun].toLowerCase()}. Change skin type in Settings.
-        </p>
+        {flash && <div className="okmsg" role="status">{flash}</div>}
       </section>
 
-      <section className="card plan-card">
+      <div className="routine-cols">
+        <section className="card r-col">
+          <SecHead kind="sun" kicker="Every morning" title="Morning" />
+          <div className="r-list">{am.map((r, i) => <Tile key={r} r={r} n={i + 1} />)}</div>
+        </section>
+        <section className="card r-col">
+          <SecHead kind="moon" kicker="Before bed" title="Night" />
+          <div className="r-list">{pm.map((r, i) => <Tile key={r} r={r} n={i + 1} />)}</div>
+        </section>
+      </div>
+      <p className="muted small" style={{ margin: "10px 2px 0" }}>Tap any product to see how to use it, mark it bought, or swap it. Face wash and moisturizer are the same bottle morning and night.</p>
+
+      <section className="card">
         <div className="card-head">
-          <div><div className="kicker">Step 2</div><h2>My routine · {steps.length} products</h2></div>
-          <span className="count-pill">{owned}/{steps.length} bought</span>
+          <div><div className="kicker">Shopping list</div><h2>{toBuy.length ? `${rupees(cost)} to buy` : "Everything bought ✓"}</h2></div>
+          <span className="count-pill">{mine.length - toBuy.length}/{mine.length} bought</span>
         </div>
-        <div className="slots">
-          {steps.map((r) => {
-            const x = ctx.sel[r]!;
-            const st = status[x.id] || "none";
-            return (
-              <div key={r} className="slot prod-slot">
-                <span className="add-emoji">{x.emoji}</span>
-                <div className="grow">
-                  <div className="kicker">{ROLES[r].label} · {ROLES[r].when}</div>
-                  <div className="t">{x.name}</div>
-                  <div className="d">{rupees(x.price)} · {x.size} · <a href={amazonUrl(x)} target="_blank" rel="noopener noreferrer">Amazon</a>{defaults[r] !== x.id && <span className="sugg mine"> · your choice</span>}</div>
-                </div>
-                <div className="slot-actions">
-                  <select className={`st-select ${st}`} value={st} onChange={(e) => setProduct(x.id, e.target.value)} aria-label={`Status of ${x.name}`}>
-                    {STATUS_OPTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                  </select>
-                  <button className="ghost-btn" onClick={() => show(r)}>Change</button>
-                </div>
+        {toBuy.length > 0 && (
+          <div className="shop">
+            {toBuy.map((x) => (
+              <div className="shop-row" key={x.id}>
+                <button className="shop-tick" onClick={() => setProduct(x.id, "bought")} aria-label={`Mark ${x.short} bought`} />
+                <span className="grow"><b>{x.short}</b><small>{x.size}</small></span>
+                <span className="price">{rupees(x.price)}</span>
+                <a className="mini-link pill-link" href={amazonUrl(x)} target="_blank" rel="noopener noreferrer">Amazon ↗</a>
               </div>
-            );
-          })}
-        </div>
-        {missing.length > 0 && (
-          <div className="add-steps">
-            <span className="muted small">Add a step:</span>
-            {missing.map((r) => <button key={r} className="chip" onClick={() => show(r)}>+ {ROLES[r].label}</button>)}
+            ))}
           </div>
         )}
-        <div className="buy-sum">
-          <div><b>{toBuy.length ? rupees(cost) : "All bought ✓"}</b><span>{toBuy.length ? `to buy ${toBuy.length} product${toBuy.length > 1 ? "s" : ""}` : "nothing left to buy"}</span></div>
-          {low.length > 0 && <div className="note-box gold" style={{ margin: 0 }}><b>Re-order soon:</b> {low.map((x) => x.short).join(", ")}</div>}
-        </div>
+        {low.length > 0 && <div className="note-box gold"><b>Re-order soon:</b> {low.map((x) => x.short).join(", ")}</div>}
       </section>
 
-      <div ref={gridRef} className="cat-head">
-        <div className="kicker">Step 3</div>
-        <h2>Browse all products</h2>
-        <p className="muted" style={{ margin: "4px 0 0" }}>Tap a card to flip it: what it does and how to use it. “Use this” puts it into your routine.</p>
-      </div>
-      <div className="filters">
-        {([["mine", "In my routine"], ["all", "All"], ...ROLE_GROUP.map((g) => [g.label, g.label])] as [string, string][]).map(([k, l]) => (
-          <button key={k} className={`chip ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
-        ))}
-        {(Object.keys(ROLES) as Role[]).includes(filter as Role) && <button className="chip on">{ROLES[filter as Role].label}</button>}
-      </div>
+      <section className="card">
+        <button className="explore-btn" onClick={() => setExplore(!explore)} aria-expanded={explore}>
+          <span><b>Add a step or explore products</b><small>{missing.length} more steps · {CATALOG.length} products</small></span>
+          <span>{explore ? "−" : "+"}</span>
+        </button>
+        {explore && (
+          <div className="add-list">
+            {missing.map((r) => {
+              const opts = CATALOG.filter((x) => x.role === r);
+              return (
+                <div className="add-row" key={r}>
+                  <span className="add-emoji">{opts[0].emoji}</span>
+                  <div className="grow"><div className="t">{ROLES[r].label}</div><div className="d">{ROLES[r].when} · {opts.length} option{opts.length > 1 ? "s" : ""}</div></div>
+                  <button className="ghost-btn" onClick={() => setOpen(r)}>See options</button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      <p className="muted small" style={{ marginTop: 10 }}>Prices checked on Amazon.in on 7 Nov 2026. No paid promotion; any similar product works. Patch test new products for 24 hours.</p>
 
-      <div className="flip-grid">
-        {list.map((x, i) => {
-          const on = ctx.sel[x.role]?.id === x.id;
-          return (
-            <article key={x.id} className={`fcard food ${on ? "picked" : ""}`}>
-              <Flip
-                front={<>
-                  <div className="food-emoji" style={{ background: TONES[i % TONES.length] }}>{x.emoji}</div>
-                  {defaults[x.role] === x.id && <span className="good">Suggested for you</span>}
-                  <div className="kicker">{ROLES[x.role].label}</div>
-                  <h3>{x.name}</h3>
-                  <p className="d">For: {x.forSkin}</p>
-                  <p className="d"><b className="price">{rupees(x.price)}</b> · {x.size}</p>
-                </>}
-                back={<>
-                  <h3>{x.emoji} {x.name}</h3>
-                  <dl>
-                    <dt>What it does</dt><dd>{x.does}</dd>
-                    <dt>How to use</dt><dd>{x.how}</dd>
-                    <dt>When</dt><dd>{ROLES[x.role].when}</dd>
-                  </dl>
-                </>}
-              />
-              <div className="card-btns">
-                <a className="mini-link" href={amazonUrl(x)} target="_blank" rel="noopener noreferrer">Amazon ↗</a>
-                {on && !ROLES[x.role].essential
-                  ? <button className="pick-btn on" onClick={() => setProdPick(x.role, "none")} title="Remove from routine">✓ In routine · remove</button>
-                  : <button className={`pick-btn ${on ? "on" : ""}`} disabled={on} onClick={() => setProdPick(x.role, x.id)}>{on ? "✓ In my routine" : "Use this"}</button>}
-              </div>
-            </article>
-          );
-        })}
-      </div>
-      <p className="muted small" style={{ marginTop: 12 }}>Prices checked on Amazon.in on 7 Nov 2026 and may change. No paid promotion; any similar product works. Patch test each new product for 24 hours.</p>
+      {open && <ProductSheet role={open} ctx={ctx} status={status} setProduct={setProduct} setProdPick={setProdPick} onClose={() => setOpen(null)} />}
     </>
+  );
+}
+
+function ProductSheet({ role, ctx, status, setProduct, setProdPick, onClose }: {
+  role: Role; ctx: Ctx; status: Record<string, string>; setProduct: (id: string, s: string) => void;
+  setProdPick: (r: Role, id: string | null) => void; onClose: () => void;
+}) {
+  const cur = ctx.sel[role];
+  const defaults = defaultProducts(ctx.profile);
+  const options = CATALOG.filter((x) => x.role === role);
+  const st = cur ? status[cur.id] || "none" : "none";
+  return (
+    <div role="dialog" aria-modal="true" aria-label={ROLES[role].label} className="sheet-bg" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="card-head"><div><div className="kicker">{ROLES[role].when}{FREQ[role] ? ` · ${FREQ[role]}` : ""}</div><h2>{ROLES[role].label}</h2></div><button className="chip" onClick={onClose}>Close</button></div>
+
+        {cur ? (
+          <div className="ps-current">
+            <div className="ps-top">
+              <span className="food-emoji" style={{ background: TONES[options.indexOf(cur) % TONES.length] }}>{cur.emoji}</span>
+              <div className="grow">
+                <h3>{cur.name}</h3>
+                <p className="d">{rupees(cur.price)} · {cur.size} · For {cur.forSkin.toLowerCase()}</p>
+                <a className="buy-btn" href={amazonUrl(cur)} target="_blank" rel="noopener noreferrer">Buy on Amazon ↗</a>
+              </div>
+            </div>
+            <dl className="ps-dl">
+              <dt>What it does</dt><dd>{cur.does}</dd>
+              <dt>How to use</dt><dd>{cur.how}</dd>
+            </dl>
+            <div className="seg-mini" style={{ marginTop: 12 }}>
+              {STATUS_OPTS.map(([k, l]) => <button key={k} className={st === k ? "on" : ""} onClick={() => setProduct(cur.id, k)}>{l}</button>)}
+            </div>
+          </div>
+        ) : <p className="muted">Not in your routine yet. Pick one below to add it; it goes into your morning or night steps by itself.</p>}
+
+        {options.length > (cur ? 1 : 0) && <h3 className="ps-sub">{cur ? "Swap for" : "Options"}</h3>}
+        <div className="add-list">
+          {options.filter((x) => x.id !== cur?.id).map((x) => (
+            <div className="add-row" key={x.id}>
+              <span className="add-emoji">{x.emoji}</span>
+              <div className="grow">
+                <div className="t">{x.name}{defaults[role] === x.id && <span className="tag">Suggested</span>}</div>
+                <div className="d">For {x.forSkin.toLowerCase()} · {rupees(x.price)} · <a href={amazonUrl(x)} target="_blank" rel="noopener noreferrer">Amazon</a></div>
+                <div className="d">{x.does}</div>
+              </div>
+              <button className="ghost-btn" onClick={() => { setProdPick(role, x.id); onClose(); }}>{cur ? "Swap" : "Add"}</button>
+            </div>
+          ))}
+        </div>
+        {cur && !ROLES[role].essential && <button className="btn ghost" onClick={() => { setProdPick(role, "none"); onClose(); }}>Remove this step from my routine</button>}
+        {cur && ROLES[role].essential && <p className="muted small" style={{ marginTop: 12 }}>Everyone needs this step, so it can be swapped but not removed.</p>}
+      </div>
+    </div>
   );
 }
 
