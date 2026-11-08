@@ -614,3 +614,4 @@ details.foryou[open] .fy-more { opacity: .5; }
 .grid-title { font-family: var(--serif); font-weight: 500; font-size: 24px; margin: 26px 2px 0; }
 .fcard .pick-btn { text-align: center; }
 .seg button { white-space: nowrap; }
+.inline-link { border: 0; background: none; padding: 0; color: var(--clay-ink); font-weight: 700; text-decoration: underline; font-size: inherit; }

@@ -225,7 +225,7 @@ export default function Dashboard() {
               setReaction={(v) => patchLog(date, { reaction: v }, { reaction: v })} />
           )}
           {tab === "routine" && <RoutineView start={me.startDate} today={today} profile={profile} ctx={ctx} status={me.productStatus} setProduct={setProduct} setProdPick={setProdPick} />}
-          {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} ctx={ctx} setProdPick={setProdPick} setGoal={setGoal} />}
+          {tab === "products" && <ProductsView status={me.productStatus} setProduct={setProduct} ctx={ctx} setProdPick={setProdPick} setGoal={setGoal} openSettings={() => setShowSettings(true)} />}
           {tab === "food" && <FoodView profile={profile} picks={ctx.picks} setPicks={setPicks} />}
           {tab === "progress" && (
             <ProgressView start={me.startDate} today={today} logs={logs} ctx={ctx} open={(d) => { setDate(d); setTab("today"); window.scrollTo(0, 0); }} />
@@ -613,9 +613,9 @@ const AM_ROLES: Role[] = ["cleanser", "rose", "vitc", "ha", "moist", "spf"];
 const PM_ROLES: Role[] = ["cleanser", "ha", "arbutin", "nia", "bha", "retinoid", "eye", "moist", "vite"];
 const FREQ: Partial<Record<Role, string>> = { arbutin: "from week 2", bha: "2 nights/week", retinoid: "2–3 nights/week · from week 3", vite: "2–3 nights/week", rose: "optional" };
 
-function ProductsView({ status, setProduct, ctx, setProdPick, setGoal }: {
+function ProductsView({ status, setProduct, ctx, setProdPick, setGoal, openSettings }: {
   status: Record<string, string>; setProduct: (id: string, s: string) => void; ctx: Ctx;
-  setProdPick: (r: Role, id: string | null) => void; setGoal: (g: Goal) => void;
+  setProdPick: (r: Role, id: string | null) => void; setGoal: (g: Goal) => void; openSettings: () => void;
 }) {
   const [open, setOpen] = useState<Role | null>(null);
   const [explore, setExplore] = useState(false);
@@ -669,6 +669,12 @@ function ProductsView({ status, setProduct, ctx, setProdPick, setGoal }: {
           ))}
         </div>
         {flash && <div className="okmsg" role="status">{flash}</div>}
+        {goal === "auto" && p.concerns.length === 0 && (
+          <div className="note-box teal">
+            <b>Why so few products?</b> Your answers have no skin concerns ticked, so you get a simple, healthy-skin routine.
+            Want more? Tick what bothers you in <button className="inline-link" onClick={openSettings}>Settings</button>, or pick a style above, like Glow or Spot fading.
+          </div>
+        )}
       </section>
 
       <div className="routine-cols">
