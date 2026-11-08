@@ -7,7 +7,7 @@ import { FOODS, SLOTS, LIFESTYLE, allowed, defaultPicks, foodSteps, slotPicks, t
 import { REMEDIES, NEVER } from "@/lib/remedies";
 import { AGE_LABEL, CONCERN_LABEL, DEFAULT_PROFILE, GOALS, type Goal, DIET_LABEL, SKIN_LABEL, SUN_LABEL, TAG_LABEL, focusFor, type Profile } from "@/lib/profile";
 import {
-  CATALOG, ROLES, ROLE_ORDER, NIGHT_LABEL, amazonUrl, rupees, selection, defaultPicks as defaultProducts,
+  CATALOG, ROLES, ROLE_ORDER, ROLE_GROUP, NIGHT_LABEL, amazonUrl, rupees, selection, defaultPicks as defaultProducts,
   amSteps as amFor, nightSteps as pmFor, nightType as nightFor, nightNote, weekGrid, weekNews,
   type Picks, type Product, type Role, type Selection,
 } from "@/lib/routine";
@@ -617,19 +617,18 @@ function ProductsView({ status, setProduct, ctx, setProdPick, setGoal, openSetti
   status: Record<string, string>; setProduct: (id: string, s: string) => void; ctx: Ctx;
   setProdPick: (r: Role, id: string | null) => void; setGoal: (g: Goal) => void; openSettings: () => void;
 }) {
+  const [filter, setFilter] = useState<string>("all");
   const [open, setOpen] = useState<Role | null>(null);
-  const [explore, setExplore] = useState(false);
   const [flash, setFlash] = useState("");
+  const gridRef = useRef<HTMLDivElement>(null);
   const p = ctx.profile;
   const goal = p.goal || "auto";
   const g = GOALS.find((x) => x.id === goal)!;
+  const defaults = defaultProducts(p);
   const mine = ROLE_ORDER.filter((r) => ctx.sel[r]).map((r) => ctx.sel[r]!) as Product[];
-  const missing = ROLE_ORDER.filter((r) => !ctx.sel[r]);
   const toBuy = mine.filter((x) => !status[x.id] || status[x.id] === "none");
   const low = mine.filter((x) => status[x.id] === "low" || status[x.id] === "finished");
   const cost = toBuy.reduce((a, x) => a + x.price, 0);
-  const am = AM_ROLES.filter((r) => ctx.sel[r]);
-  const pm = PM_ROLES.filter((r) => ctx.sel[r]);
 
   function pickGoal(id: Goal) {
     if (id === goal) return;
@@ -638,23 +637,21 @@ function ProductsView({ status, setProduct, ctx, setProdPick, setGoal, openSetti
     setFlash(`Routine updated: ${n} products. Today and Routine now follow “${GOALS.find((x) => x.id === id)!.title}”.`);
     setTimeout(() => setFlash(""), 4000);
   }
-
-  const Tile = ({ r, n }: { r: Role; n: number }) => {
-    const x = ctx.sel[r]!;
-    const st = status[x.id] || "none";
-    return (
-      <button className="r-tile" onClick={() => setOpen(r)}>
-        <span className="r-num">{n}</span>
-        <span className="r-emoji">{x.emoji}</span>
-        <span className="grow">
-          <span className="r-role">{ROLES[r].label}{FREQ[r] && <em> · {FREQ[r]}</em>}</span>
-          <span className="r-name">{x.short}</span>
-        </span>
-        {st !== "none" && <span className={`r-st ${st}`}>{STATUS_OPTS.find(([k]) => k === st)?.[1]}</span>}
-        <span className="r-go" aria-hidden>›</span>
-      </button>
-    );
+  const groupOf = (r: Role) => ROLE_GROUP.find((x) => x.roles.includes(r))!;
+  const choose = (r: Role) => {
+    const grp = groupOf(r);
+    setFilter(grp.roles.length === 1 ? grp.label : r);
+    setTimeout(() => gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 30);
   };
+  const grp = ROLE_GROUP.find((x) => x.label === filter);
+  const list = CATALOG.filter((x) =>
+    filter === "all" ? true
+      : filter === "mine" ? ctx.sel[x.role]?.id === x.id
+      : filter === "good" ? defaults[x.role] === x.id
+      : grp ? grp.roles.includes(x.role)
+      : x.role === filter);
+  const filters: [string, string][] = [["all", "All"], ["mine", "In my routine"], ["good", "Suggested for me"], ...ROLE_GROUP.map((x) => [x.label, x.label] as [string, string])];
+  if ((Object.keys(ROLES) as string[]).includes(filter) && !ROLE_GROUP.some((x) => x.label === filter)) filters.push([filter, ROLES[filter as Role].label]);
 
   return (
     <>
@@ -671,23 +668,82 @@ function ProductsView({ status, setProduct, ctx, setProdPick, setGoal, openSetti
         {flash && <div className="okmsg" role="status">{flash}</div>}
         {goal === "auto" && p.concerns.length === 0 && (
           <div className="note-box teal">
-            <b>Why so few products?</b> Your answers have no skin concerns ticked, so you get a simple, healthy-skin routine.
-            Want more? Tick what bothers you in <button className="inline-link" onClick={openSettings}>Settings</button>, or pick a style above, like Glow or Spot fading.
+            <b>Why so few products?</b> No skin concerns are ticked in your answers, so you get a simple, healthy-skin routine.
+            Want more? Tick what bothers you in <button className="inline-link" onClick={openSettings}>Settings</button>, or pick a style above.
           </div>
         )}
       </section>
 
-      <div className="routine-cols">
-        <section className="card r-col">
-          <SecHead kind="sun" kicker="Every morning" title="Morning" />
-          <div className="r-list">{am.map((r, i) => <Tile key={r} r={r} n={i + 1} />)}</div>
-        </section>
-        <section className="card r-col">
-          <SecHead kind="moon" kicker="Before bed" title="Night" />
-          <div className="r-list">{pm.map((r, i) => <Tile key={r} r={r} n={i + 1} />)}</div>
-        </section>
+      <section className="card plan-card">
+        <div className="card-head">
+          <div><div className="kicker">For {SKIN_LABEL[p.skin].toLowerCase()} skin</div><h2>My skincare plan</h2></div>
+          <span className="count-pill">{mine.length} products</span>
+        </div>
+        <p className="muted" style={{ margin: "6px 0 0" }}>Pick products from the cards below. Each one goes into its own step and into your morning or night routine by itself.</p>
+        <div className="slots">
+          {ROLE_ORDER.map((r) => {
+            const x = ctx.sel[r];
+            const ess = ROLES[r].essential;
+            return (
+              <div key={r} className={`slot ${x ? "" : ess ? "empty" : "opt"}`}>
+                <div className="slot-time"><b>{ROLES[r].label}</b><small>{ROLES[r].when}</small></div>
+                <div className="slot-items">
+                  {x ? (
+                    <span className="slot-chip">
+                      <button className="chip-open" onClick={() => setOpen(r)}>{x.emoji} {x.short}</button>
+                      {!ess && <button aria-label={`Remove ${x.short}`} onClick={() => setProdPick(r, "none")}>×</button>}
+                    </span>
+                  ) : (
+                    <button className="slot-empty" onClick={() => choose(r)}>{ess ? `${ROLES[r].label} missing · choose` : "Optional · add"}</button>
+                  )}
+                  {x && <button className="slot-change" onClick={() => choose(r)}>Change</button>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <div ref={gridRef} className="filters" style={{ scrollMarginTop: 80, marginTop: 18 }}>
+        {filters.map(([k, l]) => (
+          <button key={k} className={`chip ${filter === k ? "on" : ""}`} onClick={() => setFilter(k)}>{l}</button>
+        ))}
       </div>
-      <p className="muted small" style={{ margin: "10px 2px 0" }}>Tap any product to see how to use it, mark it bought, or swap it. Face wash and moisturizer are the same bottle morning and night.</p>
+
+      <div className="flip-grid">
+        {list.map((x, i) => {
+          const on = ctx.sel[x.role]?.id === x.id;
+          const ess = ROLES[x.role].essential;
+          return (
+            <article key={x.id} className={`fcard food ${on ? "picked" : ""}`}>
+              <Flip
+                front={<>
+                  <div className="food-emoji" style={{ background: TONES[i % TONES.length] }}>{x.emoji}</div>
+                  {defaults[x.role] === x.id && <span className="good">Suggested for you</span>}
+                  <div className="kicker">{ROLES[x.role].label}</div>
+                  <h3>{x.name}</h3>
+                  <p className="d">For {x.forSkin.toLowerCase()}</p>
+                  <div className="mini-tags"><span>{rupees(x.price)}</span><span>{x.size}</span><span>{ROLES[x.role].when}</span></div>
+                </>}
+                back={<>
+                  <h3>{x.emoji} {x.short}</h3>
+                  <dl>
+                    <dt>What it does</dt><dd>{x.does}</dd>
+                    <dt>How to use</dt><dd>{x.how}</dd>
+                  </dl>
+                </>}
+              />
+              <div className="card-btns">
+                <a className="mini-link" href={amazonUrl(x)} target="_blank" rel="noopener noreferrer">Amazon ↗</a>
+                <button className={`pick-btn ${on ? "on" : ""}`} disabled={on && ess} aria-pressed={on}
+                  onClick={() => setProdPick(x.role, on ? "none" : x.id)}>
+                  {on ? (ess ? "✓ In my routine" : "✓ In routine · remove") : `+ Use as ${ROLES[x.role].label.toLowerCase()}`}
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
 
       <section className="card">
         <div className="card-head">
@@ -707,27 +763,7 @@ function ProductsView({ status, setProduct, ctx, setProdPick, setGoal, openSetti
           </div>
         )}
         {low.length > 0 && <div className="note-box gold"><b>Re-order soon:</b> {low.map((x) => x.short).join(", ")}</div>}
-      </section>
-
-      <section className="card">
-        <button className="explore-btn" onClick={() => setExplore(!explore)} aria-expanded={explore}>
-          <span><b>Add a step or explore products</b><small>{missing.length} more steps · {CATALOG.length} products</small></span>
-          <span>{explore ? "−" : "+"}</span>
-        </button>
-        {explore && (
-          <div className="add-list">
-            {missing.map((r) => {
-              const opts = CATALOG.filter((x) => x.role === r);
-              return (
-                <div className="add-row" key={r}>
-                  <span className="add-emoji">{opts[0].emoji}</span>
-                  <div className="grow"><div className="t">{ROLES[r].label}</div><div className="d">{ROLES[r].when} · {opts.length} option{opts.length > 1 ? "s" : ""}</div></div>
-                  <button className="ghost-btn" onClick={() => setOpen(r)}>See options</button>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <p className="muted small" style={{ margin: "12px 0 0" }}>Tap a product name in your plan to mark it Using / Running low.</p>
       </section>
       <p className="muted small" style={{ marginTop: 10 }}>Prices checked on Amazon.in on 7 Nov 2026. No paid promotion; any similar product works. Patch test new products for 24 hours.</p>
 
