@@ -12,9 +12,9 @@
 
 ## The real-life problem
 
-This started with one real person: a 42-year-old woman with normal skin, low blood pressure and a vegetarian diet who wanted to fix dark spots, under-eye darkness and loosening skin. She started the way most people do: a few reels, a cart full of serums, and a dozen home remedies from relatives.
+I made this for someone close to me. She is 42, has normal skin and low blood pressure, eats mostly vegetarian food, and wanted to do something about dark spots, dark circles and skin that was getting loose. She had seen a lot of tips online and from family, but it was hard to know what to use, in what order, and when.
 
-That approach fails for ordinary reasons:
+A few things made it hard to stick to:
 
 - **Too many products, too fast.** Retinol, vitamin C, alpha arbutin and exfoliating acids used together from day one irritate the skin, and people quit in week one.
 - **Nobody remembers the order.** Which serum goes first? Retinol on which night? Was it vitamin C in the morning or at night?
