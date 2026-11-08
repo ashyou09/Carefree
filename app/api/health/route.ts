@@ -11,9 +11,19 @@ export async function GET() {
   }
   try {
     const db = await getDb();
+    const t0 = Date.now();
     await db.command({ ping: 1 });
-    const users = await db.collection("users").countDocuments();
-    return NextResponse.json({ ok: true, db: "connected", database: db.databaseName, users, ms: Date.now() - started });
+    const pingMs = Date.now() - t0;
+    const users = await db.collection("users").estimatedDocumentCount();
+    // Atlas tags its servers with the cloud region; shown so the app server can run next to the database.
+    const hello = await db.admin().command({ hello: 1 }).catch(() => ({} as Record<string, unknown>));
+    const tags = (hello as { tags?: Record<string, string> }).tags || {};
+    return NextResponse.json({
+      ok: true, db: "connected", database: db.databaseName, users,
+      ms: Date.now() - started, pingMs,
+      dbRegion: tags.region || null, dbProvider: tags.provider || null,
+      appRegion: process.env.VERCEL_REGION || null,
+    });
   } catch (e) {
     const msg = (e as Error).message || "unknown error";
     // strip anything that looks like a connection string
