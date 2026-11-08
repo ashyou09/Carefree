@@ -1,5 +1,5 @@
 // Personal routine engine: profile (skin type, concerns, sun, age) -> chosen products -> daily steps + night schedule.
-import type { Profile } from "./profile";
+import { GOAL_CONCERNS, type Profile } from "./profile";
 import { addDays, dayNumber, weekOf, weekdayIdx, type Step } from "./plan";
 
 export type Role = "cleanser" | "vitc" | "ha" | "nia" | "arbutin" | "bha" | "retinoid" | "eye" | "moist" | "spf" | "vite" | "rose";
@@ -22,6 +22,17 @@ export const ROLES: Record<Role, { label: string; essential?: boolean; when: str
   vite: { label: "Vitamin E (skin only)", when: "2–3 nights a week" },
   rose: { label: "Toner / rose water", when: "Morning + night (optional)" },
 };
+
+// Order steps are shown in (morning first, then night-only, then extras).
+export const ROLE_ORDER: Role[] = ["cleanser", "rose", "vitc", "ha", "moist", "spf", "nia", "arbutin", "bha", "retinoid", "eye", "vite"];
+export const ROLE_GROUP: { label: string; roles: Role[] }[] = [
+  { label: "Face wash", roles: ["cleanser"] },
+  { label: "Serums", roles: ["vitc", "ha", "nia", "arbutin", "bha", "retinoid"] },
+  { label: "Moisturizer", roles: ["moist"] },
+  { label: "Sunscreen", roles: ["spf"] },
+  { label: "Eye", roles: ["eye"] },
+  { label: "Extras", roles: ["rose", "vite"] },
+];
 
 export const CATALOG: Product[] = [
   // face wash
@@ -67,20 +78,22 @@ export type Selection = Partial<Record<Role, Product>>;
 
 /** Best default products for this person. */
 export function defaultPicks(p: Profile): Picks {
-  const c = new Set(p.concerns);
+  const goal = p.goal || "auto";
+  const c = new Set(goal === "auto" ? p.concerns : GOAL_CONCERNS[goal]);
   const oily = p.skin === "oily" || p.skin === "combination";
   const out: Picks = {};
   out.cleanser = c.has("acne") || p.skin === "oily" ? "c_sal" : p.skin === "dry" ? "c_cerave" : "cleanser";
   out.moist = oily ? "m_b5" : p.skin === "sensitive" ? "m_ceramide" : "moist";
   out.spf = oily || c.has("acne") ? "spf" : p.skin === "dry" ? "spf_dewy" : p.skin === "sensitive" ? "spf_mini" : "spf";
   if (c.has("spots") || c.has("dull") || c.has("lines") || p.sun === "outdoor") out.vitc = "vitc";
-  if (p.skin === "dry" || p.skin === "sensitive") out.ha = "ha";
-  if (c.has("spots") || c.has("pores") || c.has("acne") || oily || p.age === "40s" || p.age === "50+") out.nia = "nia";
+  if (goal === "basic") return out; // wash, moisturize, sunscreen only
+  if (p.skin === "dry" || p.skin === "sensitive" || goal === "glow") out.ha = "ha";
+  if (c.has("spots") || c.has("pores") || c.has("acne") || c.has("dull") || oily || (goal === "auto" && (p.age === "40s" || p.age === "50+"))) out.nia = "nia";
   if (c.has("spots")) out.arbutin = "arbutin";
   if (c.has("acne") || c.has("pores")) out.bha = "bha";
   if (c.has("lines")) out.retinoid = p.skin === "sensitive" || p.age === "50+" || p.age === "20s" ? "retinoid_g" : "retinol";
   if (c.has("undereye")) out.eye = "eye";
-  if ((p.skin === "dry" || p.age === "40s" || p.age === "50+") && !oily && !c.has("acne")) out.vite = "vite";
+  if (goal === "auto" && (p.skin === "dry" || p.age === "40s" || p.age === "50+") && !oily && !c.has("acne")) out.vite = "vite";
   out.rose = "rose";
   return out;
 }

@@ -55,7 +55,10 @@ export async function PATCH(req: Request) {
   let prof = profileOf(user) || DEFAULT_PROFILE;
   if (body.profile) {
     const p = cleanProfile(body.profile, prof);
-    if (p) { $set.profile = p; prof = p; }
+    if (p) {
+      if ((p.goal || "auto") !== (prof.goal || "auto")) $unset.prodPicks = ""; // new routine style = fresh suggestions
+      $set.profile = p; prof = p;
+    }
   }
 
   // product choice per routine step: stored only when different from the suggestion

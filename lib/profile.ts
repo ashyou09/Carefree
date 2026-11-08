@@ -5,7 +5,21 @@ export type Diet = "veg" | "egg" | "nonveg";
 export type Skin = "normal" | "dry" | "oily" | "combination" | "sensitive";
 export type Concern = "spots" | "undereye" | "lines" | "acne" | "dull" | "pores";
 export type Sun = "indoor" | "some" | "outdoor";
-export type Profile = { gender: Gender; age: AgeGroup; diet: Diet; skin: Skin; concerns: Concern[]; sun: Sun };
+export type Goal = "auto" | "basic" | "glow" | "spots" | "ageing" | "clear";
+export type Profile = { gender: Gender; age: AgeGroup; diet: Diet; skin: Skin; concerns: Concern[]; sun: Sun; goal?: Goal };
+
+// Routine styles. "auto" builds from the person's answers; the others are ready-made plans.
+export const GOALS: { id: Goal; emoji: string; title: string; line: string }[] = [
+  { id: "auto", emoji: "🧭", title: "From my answers", line: "Built from your skin type and what bothers you" },
+  { id: "basic", emoji: "🌿", title: "Basic care", line: "Just healthy skin: wash, moisturize, sunscreen" },
+  { id: "glow", emoji: "✨", title: "Glow", line: "Brighter, hydrated skin. No strong actives" },
+  { id: "spots", emoji: "🎯", title: "Spot fading", line: "Dark spots, tan and uneven tone" },
+  { id: "ageing", emoji: "⏳", title: "Anti-ageing", line: "Fine lines, loose skin, dark circles" },
+  { id: "clear", emoji: "🫧", title: "Clear skin", line: "Pimples, oil and open pores" },
+];
+export const GOAL_CONCERNS: Record<Exclude<Goal, "auto">, Concern[]> = {
+  basic: [], glow: ["dull"], spots: ["spots", "dull"], ageing: ["lines", "undereye"], clear: ["acne", "pores"],
+};
 
 export const SKIN_LABEL: Record<Skin, string> = { normal: "Normal", dry: "Dry", oily: "Oily", combination: "Combination", sensitive: "Sensitive" };
 export const SKIN_HINT: Record<Skin, string> = {
@@ -34,7 +48,8 @@ export function cleanProfile(x: unknown, base: Profile = DEFAULT_PROFILE): Profi
   const skin = (Object.keys(SKIN_LABEL) as Skin[]).includes(p.skin as Skin) ? (p.skin as Skin) : base.skin;
   const concerns = Array.isArray(p.concerns) ? [...new Set((p.concerns as string[]).filter((c) => c in CONCERN_LABEL))] as Concern[] : base.concerns;
   const sun = (["indoor", "some", "outdoor"] as Sun[]).includes(p.sun as Sun) ? (p.sun as Sun) : base.sun;
-  return { gender: p.gender as Gender, age: p.age as AgeGroup, diet: p.diet as Diet, skin, concerns, sun };
+  const goal = GOALS.some((g) => g.id === p.goal) ? (p.goal as Goal) : base.goal || "auto";
+  return { gender: p.gender as Gender, age: p.age as AgeGroup, diet: p.diet as Diet, skin, concerns, sun, goal };
 }
 
 
